@@ -1,0 +1,494 @@
+---
+title: "Classification: Yes or No Decisions"
+description: "Detect defective sensor boards from test measurements using logistic regression. Learn confusion matrices, precision, recall, ROC curves, and how to handle imbalanced classes with complete, runnable Python code."
+contributors: "sam-macharia"
+pubDate: 2026-03-03
+tags: ["classification", "logistic-regression", "confusion-matrix", "precision-recall", "roc-curve", "class-imbalance", "python", "scikit-learn"]
+excerpt: "Build a binary classifier that detects defective sensor boards from electrical test measurements. Understand the precision-recall tradeoff, ROC curves, and why accuracy is misleading when classes are imbalanced."
+heroImage: "https://cdn.siliconwit.com/education/ml-ai-fundamentals/classification-yes-or-no.png"
+---
+
+import TawkWidget from '../../../../components/TawkWidget.astro';
+import UniversalContentContributors from '../../../../components/UniversalContentContributors.astro';
+import InArticleAd from '../../../../components/InArticleAd.astro';
+import Copyright from '../../../../components/Copyright.astro';
+import BionicText from '../../../../components/BionicText.astro';
+import TailwindWrapper from '../../../../components/TailwindWrapper.jsx';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/starlight/components';
+
+<UniversalContentContributors 
+  contributors={frontmatter.contributors}
+/>
+
+
+
+import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/MlAiFundamentalsComments.astro';
+
+Regression predicts a number. Classification predicts a category. In engineering, classification problems are everywhere: is this board defective or good? Is this vibration pattern normal or faulty? Should this system trigger an alarm or stay silent? The model is still fitting a function to data, but instead of outputting a continuous value, it outputs a probability that gets converted to a yes/no decision. The evaluation changes completely, because in classification, not all mistakes are equally costly. #Classification #LogisticRegression #QualityControl
+
+## The Problem: Defective Sensor Boards
+
+You run a production line that tests sensor boards. Each board goes through an automated test station that records five electrical measurements: output voltage, supply current, input resistance, signal-to-noise ratio, and response time. A small percentage of boards are defective. You want a model that flags defectives automatically.
+
+## Step 1: Generate the Dataset
+
+<InArticleAd />
+
+
+Real defect data is imbalanced. Most boards are good. We will simulate a 95% good / 5% defective split, which is realistic for a well-tuned production line.
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(42)
+
+n_samples = 500
+defect_rate = 0.05
+
+# Labels: 0 = good, 1 = defective
+n_defective = int(n_samples * defect_rate)
+n_good = n_samples - n_defective
+labels = np.array([0] * n_good + [1] * n_defective)
+
+# Good boards: measurements cluster around nominal values
+good_voltage = np.random.normal(3.3, 0.05, n_good)       # 3.3V nominal
+good_current = np.random.normal(15.0, 1.0, n_good)       # 15mA nominal
+good_resistance = np.random.normal(10.0, 0.3, n_good)    # 10k nominal
+good_snr = np.random.normal(45.0, 2.0, n_good)           # 45dB nominal
+good_response = np.random.normal(2.0, 0.2, n_good)       # 2ms nominal
+
+# Defective boards: shifted distributions (not all measurements are off)
+def_voltage = np.random.normal(3.1, 0.15, n_defective)
+def_current = np.random.normal(18.0, 3.0, n_defective)
+def_resistance = np.random.normal(11.5, 1.0, n_defective)
+def_snr = np.random.normal(38.0, 5.0, n_defective)
+def_response = np.random.normal(3.5, 0.8, n_defective)
+
+# Combine
+voltage = np.concatenate([good_voltage, def_voltage])
+current = np.concatenate([good_current, def_current])
+resistance = np.concatenate([good_resistance, def_resistance])
+snr = np.concatenate([good_snr, def_snr])
+response = np.concatenate([good_response, def_response])
+
+X = np.column_stack([voltage, current, resistance, snr, response])
+
+# Shuffle
+shuffle_idx = np.random.permutation(n_samples)
+X = X[shuffle_idx]
+labels = labels[shuffle_idx]
+
+print(f"Dataset: {n_samples} boards")
+print(f"  Good:      {(labels == 0).sum()} ({(labels == 0).mean() * 100:.0f}%)")
+print(f"  Defective: {(labels == 1).sum()} ({(labels == 1).mean() * 100:.0f}%)")
+print(f"\nFeature names: voltage, current, resistance, SNR, response_time")
+print(f"Feature matrix shape: {X.shape}")
+
+# Quick visualization: two most discriminative features
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+good_mask = labels == 0
+def_mask = labels == 1
+
+axes[0].scatter(X[good_mask, 0], X[good_mask, 3], alpha=0.5, s=15, label='Good', color='steelblue')
+axes[0].scatter(X[def_mask, 0], X[def_mask, 3], alpha=0.8, s=30, label='Defective', color='tomato', marker='x')
+axes[0].set_xlabel('Voltage (V)')
+axes[0].set_ylabel('SNR (dB)')
+axes[0].set_title('Voltage vs SNR')
+axes[0].legend()
+
+axes[1].scatter(X[good_mask, 1], X[good_mask, 4], alpha=0.5, s=15, label='Good', color='steelblue')
+axes[1].scatter(X[def_mask, 1], X[def_mask, 4], alpha=0.8, s=30, label='Defective', color='tomato', marker='x')
+axes[1].set_xlabel('Current (mA)')
+axes[1].set_ylabel('Response Time (ms)')
+axes[1].set_title('Current vs Response Time')
+axes[1].legend()
+
+for ax in axes:
+    ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.savefig('defect_data_scatter.png', dpi=100)
+plt.show()
+print("\nPlot saved as defect_data_scatter.png")
+```
+
+Notice that the defective boards overlap with the good boards in some measurements. No single measurement perfectly separates them. The classifier must combine all five measurements to make a decision.
+
+## Step 2: Logistic Regression
+
+<InArticleAd />
+
+
+Linear regression outputs any real number. For classification, you need a number between 0 and 1, which you can interpret as a probability. Logistic regression does this by passing the linear output through a **sigmoid function**.
+
+```text
+  From Linear to Logistic
+  ──────────────────────────────────────────────
+
+  Linear regression:
+    y = w1*x1 + w2*x2 + ... + b
+    Output: any real number
+
+  Logistic regression:
+    z = w1*x1 + w2*x2 + ... + b    (same linear combination)
+    p = 1 / (1 + exp(-z))           (sigmoid squashes to 0..1)
+    Output: probability between 0 and 1
+
+  Decision rule:
+    if p >= threshold (default 0.5):  predict "defective"
+    if p <  threshold:                predict "good"
+
+  The sigmoid function:
+       1.0 |                    ___________
+           |                   /
+       0.5 |                  /
+           |                 /
+       0.0 |________________/
+           ─────────────────────────────────
+                            0
+                         z (linear output)
+```
+
+The intuition: logistic regression fits an S-curve instead of a line. The S-curve naturally maps any input to a probability.
+
+## Step 3: Train and Evaluate
+
+<InArticleAd />
+
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (confusion_matrix, classification_report,
+                              accuracy_score, precision_score, recall_score,
+                              f1_score)
+
+np.random.seed(42)
+
+# ── Generate dataset (same as above) ──
+n_samples = 500
+n_defective = int(n_samples * 0.05)
+n_good = n_samples - n_defective
+labels = np.array([0] * n_good + [1] * n_defective)
+
+good_data = np.column_stack([
+    np.random.normal(3.3, 0.05, n_good),
+    np.random.normal(15.0, 1.0, n_good),
+    np.random.normal(10.0, 0.3, n_good),
+    np.random.normal(45.0, 2.0, n_good),
+    np.random.normal(2.0, 0.2, n_good),
+])
+def_data = np.column_stack([
+    np.random.normal(3.1, 0.15, n_defective),
+    np.random.normal(18.0, 3.0, n_defective),
+    np.random.normal(11.5, 1.0, n_defective),
+    np.random.normal(38.0, 5.0, n_defective),
+    np.random.normal(3.5, 0.8, n_defective),
+])
+
+X = np.vstack([good_data, def_data])
+shuffle_idx = np.random.permutation(n_samples)
+X, labels = X[shuffle_idx], labels[shuffle_idx]
+
+# ── Split ──
+X_train, X_test, y_train, y_test = train_test_split(
+    X, labels, test_size=0.3, random_state=42, stratify=labels
+)
+print(f"Training set: {len(y_train)} samples ({(y_train == 1).sum()} defective)")
+print(f"Test set:     {len(y_test)} samples ({(y_test == 1).sum()} defective)")
+
+# ── Scale ──
+scaler = StandardScaler()
+X_train_s = scaler.fit_transform(X_train)
+X_test_s = scaler.transform(X_test)
+
+# ── Train ──
+model = LogisticRegression(random_state=42, max_iter=1000)
+model.fit(X_train_s, y_train)
+
+# ── Predict ──
+y_pred = model.predict(X_test_s)
+y_proba = model.predict_proba(X_test_s)[:, 1]  # probability of defective
+
+# ── Confusion Matrix ──
+cm = confusion_matrix(y_test, y_pred)
+print(f"\nConfusion Matrix:")
+print(f"                 Predicted Good  Predicted Defective")
+print(f"  Actual Good:       {cm[0, 0]:>4d}            {cm[0, 1]:>4d}")
+print(f"  Actual Defective:  {cm[1, 0]:>4d}            {cm[1, 1]:>4d}")
+
+print(f"\nClassification Report:")
+print(classification_report(y_test, y_pred, target_names=['Good', 'Defective']))
+
+print(f"Accuracy:  {accuracy_score(y_test, y_pred):.4f}")
+print(f"Precision: {precision_score(y_test, y_pred, zero_division=0):.4f}")
+print(f"Recall:    {recall_score(y_test, y_pred):.4f}")
+print(f"F1 Score:  {f1_score(y_test, y_pred):.4f}")
+```
+
+## Understanding the Confusion Matrix
+
+<InArticleAd />
+
+
+```text
+  Confusion Matrix for Defect Detection
+  ──────────────────────────────────────────────
+
+                        Predicted
+                    Good        Defective
+  Actual  Good:    TN            FP
+          Defect:  FN            TP
+
+  TN (True Negative):  correctly identified as good.
+  TP (True Positive):  correctly identified as defective.
+  FP (False Positive): good board flagged as defective.
+      Cost: waste (board gets re-tested or scrapped unnecessarily).
+  FN (False Negative): defective board missed.
+      Cost: shipped defect (reaches the customer).
+
+  In most factories, FN is much more costly than FP.
+  Missing a defect costs recalls, reputation, safety.
+  A false alarm just costs a re-test.
+```
+
+<Card title="Why Accuracy is Misleading" icon="warning">
+If 95% of boards are good and your model simply predicts "good" for everything, accuracy is 95%. But recall is 0%: you catch zero defectives. When classes are imbalanced, accuracy is almost useless. Look at precision, recall, and the F1 score instead.
+</Card>
+
+## Step 4: The Precision-Recall Tradeoff
+
+<InArticleAd />
+
+
+The logistic regression model outputs a probability. The default decision threshold is 0.5, but you can change it. Lowering the threshold means you flag more boards as defective. You catch more real defects (higher recall) but also flag more good boards (lower precision). Raising the threshold does the opposite.
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import precision_recall_curve, roc_curve, auc, confusion_matrix
+
+np.random.seed(42)
+
+# ── Generate and prepare dataset (same pipeline) ──
+n_samples = 500
+n_defective = int(n_samples * 0.05)
+n_good = n_samples - n_defective
+labels = np.array([0] * n_good + [1] * n_defective)
+
+good_data = np.column_stack([
+    np.random.normal(3.3, 0.05, n_good),
+    np.random.normal(15.0, 1.0, n_good),
+    np.random.normal(10.0, 0.3, n_good),
+    np.random.normal(45.0, 2.0, n_good),
+    np.random.normal(2.0, 0.2, n_good),
+])
+def_data = np.column_stack([
+    np.random.normal(3.1, 0.15, n_defective),
+    np.random.normal(18.0, 3.0, n_defective),
+    np.random.normal(11.5, 1.0, n_defective),
+    np.random.normal(38.0, 5.0, n_defective),
+    np.random.normal(3.5, 0.8, n_defective),
+])
+
+X = np.vstack([good_data, def_data])
+shuffle_idx = np.random.permutation(n_samples)
+X, labels = X[shuffle_idx], labels[shuffle_idx]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, labels, test_size=0.3, random_state=42, stratify=labels
+)
+
+scaler = StandardScaler()
+X_train_s = scaler.fit_transform(X_train)
+X_test_s = scaler.transform(X_test)
+
+model = LogisticRegression(random_state=42, max_iter=1000)
+model.fit(X_train_s, y_train)
+y_proba = model.predict_proba(X_test_s)[:, 1]
+
+# ── Precision-Recall Curve ──
+precisions, recalls, pr_thresholds = precision_recall_curve(y_test, y_proba)
+
+# ── ROC Curve ──
+fpr, tpr, roc_thresholds = roc_curve(y_test, y_proba)
+roc_auc = auc(fpr, tpr)
+
+# ── Threshold Analysis ──
+print("Effect of different decision thresholds:")
+print(f"{'Threshold':<12} {'Precision':<12} {'Recall':<12} {'FP':<6} {'FN':<6}")
+print("-" * 48)
+
+for threshold in [0.1, 0.2, 0.3, 0.5, 0.7, 0.9]:
+    y_pred_t = (y_proba >= threshold).astype(int)
+    cm = confusion_matrix(y_test, y_pred_t)
+    tp = cm[1, 1] if cm.shape[0] > 1 else 0
+    fp = cm[0, 1] if cm.shape[0] > 1 else 0
+    fn = cm[1, 0] if cm.shape[0] > 1 else 0
+    prec = tp / (tp + fp) if (tp + fp) > 0 else 0
+    rec = tp / (tp + fn) if (tp + fn) > 0 else 0
+    print(f"{threshold:<12.1f} {prec:<12.3f} {rec:<12.3f} {fp:<6d} {fn:<6d}")
+
+# ── Plots ──
+fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+
+# Precision-Recall curve
+axes[0].plot(recalls, precisions, color='steelblue', linewidth=2)
+axes[0].set_xlabel('Recall')
+axes[0].set_ylabel('Precision')
+axes[0].set_title('Precision-Recall Curve')
+axes[0].grid(True, alpha=0.3)
+axes[0].set_xlim([0, 1.05])
+axes[0].set_ylim([0, 1.05])
+
+# ROC curve
+axes[1].plot(fpr, tpr, color='steelblue', linewidth=2, label=f'AUC = {roc_auc:.3f}')
+axes[1].plot([0, 1], [0, 1], 'k--', alpha=0.3, label='Random classifier')
+axes[1].set_xlabel('False Positive Rate')
+axes[1].set_ylabel('True Positive Rate (Recall)')
+axes[1].set_title('ROC Curve')
+axes[1].legend()
+axes[1].grid(True, alpha=0.3)
+
+# Probability distribution
+axes[2].hist(y_proba[y_test == 0], bins=20, alpha=0.6, color='steelblue', label='Good boards')
+axes[2].hist(y_proba[y_test == 1], bins=10, alpha=0.6, color='tomato', label='Defective boards')
+axes[2].axvline(x=0.5, color='black', linestyle='--', label='Threshold = 0.5')
+axes[2].set_xlabel('Predicted Probability of Defective')
+axes[2].set_ylabel('Count')
+axes[2].set_title('Probability Distribution by Class')
+axes[2].legend()
+axes[2].grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.savefig('classification_curves.png', dpi=100)
+plt.show()
+print(f"\nROC AUC: {roc_auc:.3f}")
+print("AUC = 1.0 means perfect separation. AUC = 0.5 means random guessing.")
+print("\nPlot saved as classification_curves.png")
+```
+
+## Step 5: Handling Class Imbalance
+
+<InArticleAd />
+
+
+When 95% of samples belong to one class, the model can get lazy. It learns that predicting "good" almost always works. Several strategies address this.
+
+```python
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, recall_score, f1_score
+
+np.random.seed(42)
+
+# ── Generate imbalanced dataset (same as before) ──
+n_samples = 500
+n_defective = int(n_samples * 0.05)
+n_good = n_samples - n_defective
+labels = np.array([0] * n_good + [1] * n_defective)
+
+good_data = np.column_stack([
+    np.random.normal(3.3, 0.05, n_good),
+    np.random.normal(15.0, 1.0, n_good),
+    np.random.normal(10.0, 0.3, n_good),
+    np.random.normal(45.0, 2.0, n_good),
+    np.random.normal(2.0, 0.2, n_good),
+])
+def_data = np.column_stack([
+    np.random.normal(3.1, 0.15, n_defective),
+    np.random.normal(18.0, 3.0, n_defective),
+    np.random.normal(11.5, 1.0, n_defective),
+    np.random.normal(38.0, 5.0, n_defective),
+    np.random.normal(3.5, 0.8, n_defective),
+])
+
+X = np.vstack([good_data, def_data])
+shuffle_idx = np.random.permutation(n_samples)
+X, labels = X[shuffle_idx], labels[shuffle_idx]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, labels, test_size=0.3, random_state=42, stratify=labels
+)
+
+scaler = StandardScaler()
+X_train_s = scaler.fit_transform(X_train)
+X_test_s = scaler.transform(X_test)
+
+# ── Strategy 1: Default (no balancing) ──
+model_default = LogisticRegression(random_state=42, max_iter=1000)
+model_default.fit(X_train_s, y_train)
+y_pred_default = model_default.predict(X_test_s)
+
+# ── Strategy 2: class_weight='balanced' ──
+# This tells the model to penalize mistakes on the minority class more heavily.
+# The penalty weight is inversely proportional to class frequency.
+model_balanced = LogisticRegression(random_state=42, max_iter=1000, class_weight='balanced')
+model_balanced.fit(X_train_s, y_train)
+y_pred_balanced = model_balanced.predict(X_test_s)
+
+# ── Compare ──
+print("Strategy 1: Default (no class weighting)")
+print(classification_report(y_test, y_pred_default, target_names=['Good', 'Defective']))
+
+print("\nStrategy 2: class_weight='balanced'")
+print(classification_report(y_test, y_pred_balanced, target_names=['Good', 'Defective']))
+
+print("Summary:")
+print(f"  Default    recall on defectives: {recall_score(y_test, y_pred_default):.3f}")
+print(f"  Balanced   recall on defectives: {recall_score(y_test, y_pred_balanced):.3f}")
+print(f"  Default    F1 on defectives:     {f1_score(y_test, y_pred_default):.3f}")
+print(f"  Balanced   F1 on defectives:     {f1_score(y_test, y_pred_balanced):.3f}")
+print()
+print("class_weight='balanced' typically improves recall at the cost of some precision.")
+print("For defect detection, this is usually the right tradeoff.")
+```
+
+<Card title="Other Imbalance Strategies" icon="star">
+Beyond class weighting, you can: (1) oversample the minority class (SMOTE), (2) undersample the majority class, (3) use anomaly detection instead of classification, or (4) change the decision threshold. For small datasets, class weighting and threshold tuning are the simplest and most effective approaches.
+</Card>
+
+## Key Takeaways
+
+<InArticleAd />
+
+
+<Steps>
+1. **Classification is curve fitting with a sigmoid.** Logistic regression fits a linear boundary, then passes it through a sigmoid to get probabilities. The decision threshold converts probabilities to labels.
+
+2. **The confusion matrix is your diagnostic tool.** It tells you exactly where the model succeeds and fails. Learn to read TN, FP, FN, TP fluently.
+
+3. **Precision and recall capture different costs.** Precision answers: "Of the boards I flagged, how many were actually defective?" Recall answers: "Of all defective boards, how many did I catch?"
+
+4. **The threshold controls the tradeoff.** Lower the threshold to catch more defectives (higher recall) at the cost of more false alarms (lower precision). There is no free lunch.
+
+5. **Accuracy is misleading with imbalanced classes.** Use F1, precision, recall, and AUC to evaluate classifiers on imbalanced data. A model that predicts "good" for everything has 95% accuracy and zero usefulness.
+
+6. **class_weight='balanced' is the simplest fix for imbalance.** It tells the model to pay more attention to rare events.
+</Steps>
+
+## What is Next
+
+<InArticleAd />
+
+
+In [Lesson 4: Decision Trees and Random Forests](./decision-trees-random-forests), you will move from linear models to tree-based models. Trees can capture nonlinear decision boundaries, and random forests (ensembles of trees) are among the most reliable and interpretable models in practical ML. You will also learn to read feature importance: which measurements matter most for predicting equipment failure.
+
+<MlAiFundamentalsComments />
+
+
+
+<InArticleAd />
+<TawkWidget />
+<Copyright />

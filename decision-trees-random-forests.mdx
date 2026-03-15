@@ -1,0 +1,570 @@
+---
+title: "Decision Trees and Random Forests"
+description: "Predict equipment failure from vibration, temperature, and operating hours using decision trees and random forests. Visualize tree rules, interpret feature importance, and compare single trees to ensemble methods."
+contributors: "sam-macharia"
+pubDate: 2026-03-04
+tags: ["decision-trees", "random-forests", "feature-importance", "ensemble-methods", "predictive-maintenance", "python", "scikit-learn"]
+excerpt: "Build a predictive maintenance classifier using decision trees and random forests. Visualize the decision rules, understand feature importance, and see why ensembles of trees outperform single trees."
+heroImage: "https://cdn.siliconwit.com/education/ml-ai-fundamentals/decision-trees-random-forests.png"
+---
+
+import TawkWidget from '../../../../components/TawkWidget.astro';
+import UniversalContentContributors from '../../../../components/UniversalContentContributors.astro';
+import InArticleAd from '../../../../components/InArticleAd.astro';
+import Copyright from '../../../../components/Copyright.astro';
+import BionicText from '../../../../components/BionicText.astro';
+import TailwindWrapper from '../../../../components/TailwindWrapper.jsx';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/starlight/components';
+
+<UniversalContentContributors 
+  contributors={frontmatter.contributors}
+/>
+
+
+
+import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/MlAiFundamentalsComments.astro';
+
+Logistic regression draws a straight line through your feature space and says "above the line is class A, below is class B." That works when the boundary between classes is roughly linear. But many real problems have nonlinear boundaries, and for those you need models that can draw curves, angles, and irregular shapes. Decision trees do this naturally. A decision tree is a flowchart that the model discovers from data: "if vibration is above 4.5 mm/s AND temperature is above 80 C, predict failure." Random forests take this further by training hundreds of trees on random subsets of data and letting them vote. The result is one of the most reliable and interpretable model families in practical ML. #DecisionTrees #RandomForests #PredictiveMaintenance
+
+## The Problem: Predictive Maintenance
+
+You monitor industrial equipment with three sensors: a vibration sensor (mm/s RMS), a temperature probe (Celsius), and an operating hours counter. You want to predict whether the equipment will fail within the next maintenance window. This is a binary classification problem, but the decision boundary is complex: failure depends on combinations of features, not just individual thresholds.
+
+## Step 1: Generate the Dataset
+
+<InArticleAd />
+
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(42)
+
+n_samples = 600
+
+# Features
+vibration = np.random.exponential(2.0, n_samples) + 1.0      # mm/s RMS, right-skewed
+temperature = np.random.normal(65, 12, n_samples)             # Celsius
+operating_hours = np.random.uniform(100, 10000, n_samples)    # hours
+
+# Failure model: nonlinear combination
+# High vibration AND high temperature -> failure
+# Very high operating hours -> increased risk
+# Some randomness
+failure_score = (
+    0.3 * (vibration - 3.0) +
+    0.2 * (temperature - 70) / 10 +
+    0.1 * (operating_hours - 5000) / 2000 +
+    0.4 * (vibration - 3.0) * (temperature - 70) / 100  # interaction term
+    + np.random.randn(n_samples) * 0.5
+)
+
+# Convert to binary label with ~15% failure rate
+threshold = np.percentile(failure_score, 85)
+labels = (failure_score > threshold).astype(int)
+
+X = np.column_stack([vibration, temperature, operating_hours])
+feature_names = ['Vibration (mm/s)', 'Temperature (C)', 'Operating Hours']
+
+print(f"Dataset: {n_samples} equipment readings")
+print(f"  Normal:  {(labels == 0).sum()} ({(labels == 0).mean() * 100:.0f}%)")
+print(f"  Failure: {(labels == 1).sum()} ({(labels == 1).mean() * 100:.0f}%)")
+print(f"\nFeature statistics:")
+for i, name in enumerate(feature_names):
+    print(f"  {name:20s}: min={X[:, i].min():.1f}, max={X[:, i].max():.1f}, mean={X[:, i].mean():.1f}")
+
+# Visualization
+fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+normal = labels == 0
+fail = labels == 1
+
+pairs = [(0, 1), (0, 2), (1, 2)]
+for ax, (i, j) in zip(axes, pairs):
+    ax.scatter(X[normal, i], X[normal, j], alpha=0.4, s=15, color='steelblue', label='Normal')
+    ax.scatter(X[fail, i], X[fail, j], alpha=0.7, s=25, color='tomato', marker='x', label='Failure')
+    ax.set_xlabel(feature_names[i])
+    ax.set_ylabel(feature_names[j])
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.3)
+
+plt.suptitle('Equipment Sensor Data', fontsize=13)
+plt.tight_layout()
+plt.savefig('maintenance_data.png', dpi=100)
+plt.show()
+print("\nPlot saved as maintenance_data.png")
+print("Notice: failure cases cluster in the high-vibration, high-temperature region.")
+print("The boundary is not a straight line. Trees handle this naturally.")
+```
+
+## Step 2: Train a Decision Tree
+
+<InArticleAd />
+
+
+A decision tree splits the data recursively. At each node, it picks the feature and threshold that best separates the classes. The result is a flowchart that you can read and understand.
+
+```text
+  How a Decision Tree Works
+  ──────────────────────────────────────────────
+
+  Start with ALL data at the root node.
+  At each node, ask: "Which feature and threshold
+  best separates the classes?"
+
+  Example tree:
+                [Vibration > 4.2?]
+                 /            \
+              Yes              No
+             /                  \
+    [Temp > 75?]            [Normal]
+     /        \
+   Yes        No
+   /            \
+  [Failure]  [Op Hours > 7000?]
+              /          \
+           Yes           No
+           /              \
+        [Failure]      [Normal]
+
+  The tree discovers these rules from data.
+  You do not specify the thresholds.
+```
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+from sklearn.metrics import accuracy_score, classification_report
+
+np.random.seed(42)
+
+# ── Generate dataset ──
+n_samples = 600
+vibration = np.random.exponential(2.0, n_samples) + 1.0
+temperature = np.random.normal(65, 12, n_samples)
+operating_hours = np.random.uniform(100, 10000, n_samples)
+
+failure_score = (
+    0.3 * (vibration - 3.0) +
+    0.2 * (temperature - 70) / 10 +
+    0.1 * (operating_hours - 5000) / 2000 +
+    0.4 * (vibration - 3.0) * (temperature - 70) / 100
+    + np.random.randn(n_samples) * 0.5
+)
+threshold = np.percentile(failure_score, 85)
+labels = (failure_score > threshold).astype(int)
+
+X = np.column_stack([vibration, temperature, operating_hours])
+feature_names = ['Vibration', 'Temperature', 'Op Hours']
+
+# ── Split ──
+X_train, X_test, y_train, y_test = train_test_split(
+    X, labels, test_size=0.3, random_state=42, stratify=labels
+)
+
+# ── Train decision tree with max_depth=4 ──
+tree = DecisionTreeClassifier(max_depth=4, random_state=42)
+tree.fit(X_train, y_train)
+
+y_pred = tree.predict(X_test)
+print(f"Decision Tree (max_depth=4):")
+print(f"  Accuracy: {accuracy_score(y_test, y_pred):.4f}")
+print(f"\n{classification_report(y_test, y_pred, target_names=['Normal', 'Failure'])}")
+
+# ── Visualize the tree ──
+plt.figure(figsize=(20, 10))
+plot_tree(tree, feature_names=feature_names, class_names=['Normal', 'Failure'],
+          filled=True, rounded=True, fontsize=9, proportion=True)
+plt.title('Decision Tree for Equipment Failure Prediction (max_depth=4)')
+plt.tight_layout()
+plt.savefig('decision_tree_visualization.png', dpi=100)
+plt.show()
+print("Plot saved as decision_tree_visualization.png")
+print("\nRead the tree top-to-bottom. Each node shows:")
+print("  - The splitting rule (feature <= threshold)")
+print("  - The Gini impurity (0 = pure, 0.5 = maximum uncertainty)")
+print("  - The proportion of samples at that node")
+print("  - The predicted class (majority class)")
+```
+
+## Step 3: Overfitting in Trees
+
+<InArticleAd />
+
+
+A deep tree can memorize the training data perfectly. Every leaf contains exactly one class. Training accuracy is 100%. But the tree has learned the noise, not the signal.
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score
+
+np.random.seed(42)
+
+# ── Generate dataset ──
+n_samples = 600
+vibration = np.random.exponential(2.0, n_samples) + 1.0
+temperature = np.random.normal(65, 12, n_samples)
+operating_hours = np.random.uniform(100, 10000, n_samples)
+
+failure_score = (
+    0.3 * (vibration - 3.0) +
+    0.2 * (temperature - 70) / 10 +
+    0.1 * (operating_hours - 5000) / 2000 +
+    0.4 * (vibration - 3.0) * (temperature - 70) / 100
+    + np.random.randn(n_samples) * 0.5
+)
+threshold_val = np.percentile(failure_score, 85)
+labels = (failure_score > threshold_val).astype(int)
+
+X = np.column_stack([vibration, temperature, operating_hours])
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, labels, test_size=0.3, random_state=42, stratify=labels
+)
+
+# ── Train trees with different depths ──
+depths = list(range(1, 21))
+train_acc = []
+test_acc = []
+
+for d in depths:
+    dt = DecisionTreeClassifier(max_depth=d, random_state=42)
+    dt.fit(X_train, y_train)
+    train_acc.append(accuracy_score(y_train, dt.predict(X_train)))
+    test_acc.append(accuracy_score(y_test, dt.predict(X_test)))
+
+best_depth = depths[np.argmax(test_acc)]
+best_test_acc = max(test_acc)
+
+print(f"{'Depth':<8} {'Train Acc':<12} {'Test Acc':<12}")
+print("-" * 32)
+for d, tr, te in zip(depths, train_acc, test_acc):
+    marker = " <-- best" if d == best_depth else ""
+    print(f"{d:<8} {tr:<12.4f} {te:<12.4f}{marker}")
+
+print(f"\nBest depth: {best_depth} (test accuracy: {best_test_acc:.4f})")
+print(f"Depth 20:   train accuracy = {train_acc[-1]:.4f}, test accuracy = {test_acc[-1]:.4f}")
+print(f"\nSame pattern as Lesson 1: training error always goes down,")
+print(f"test error eventually goes up. Overfitting.")
+
+plt.figure(figsize=(8, 5))
+plt.plot(depths, train_acc, 'o-', color='steelblue', label='Training accuracy')
+plt.plot(depths, test_acc, 's-', color='tomato', label='Test accuracy')
+plt.axvline(x=best_depth, color='green', linestyle=':', alpha=0.7, label=f'Best depth = {best_depth}')
+plt.xlabel('Tree Depth')
+plt.ylabel('Accuracy')
+plt.title('Decision Tree: Depth vs Accuracy')
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.savefig('tree_depth_overfitting.png', dpi=100)
+plt.show()
+print("\nPlot saved as tree_depth_overfitting.png")
+```
+
+## Step 4: Random Forests
+
+<InArticleAd />
+
+
+A single tree is fragile. Change a few training points and the tree can look completely different. Random forests fix this by training many trees (typically 100 to 500) on random subsets of the data, then letting them vote on the prediction.
+
+```text
+  Random Forest: Many Trees Vote
+  ──────────────────────────────────────────────
+
+  Training data
+       │
+       ├── Random subset 1 ──► Tree 1 ──► Prediction 1
+       ├── Random subset 2 ──► Tree 2 ──► Prediction 2
+       ├── Random subset 3 ──► Tree 3 ──► Prediction 3
+       │          ...              ...
+       └── Random subset N ──► Tree N ──► Prediction N
+                                              │
+                                    Majority vote
+                                              │
+                                    Final prediction
+
+  Each tree also uses a random subset of FEATURES
+  at each split (not all features). This decorrelates
+  the trees and makes the ensemble more robust.
+```
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report
+
+np.random.seed(42)
+
+# ── Generate dataset ──
+n_samples = 600
+vibration = np.random.exponential(2.0, n_samples) + 1.0
+temperature = np.random.normal(65, 12, n_samples)
+operating_hours = np.random.uniform(100, 10000, n_samples)
+
+failure_score = (
+    0.3 * (vibration - 3.0) +
+    0.2 * (temperature - 70) / 10 +
+    0.1 * (operating_hours - 5000) / 2000 +
+    0.4 * (vibration - 3.0) * (temperature - 70) / 100
+    + np.random.randn(n_samples) * 0.5
+)
+threshold_val = np.percentile(failure_score, 85)
+labels = (failure_score > threshold_val).astype(int)
+
+X = np.column_stack([vibration, temperature, operating_hours])
+feature_names = ['Vibration (mm/s)', 'Temperature (C)', 'Operating Hours']
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, labels, test_size=0.3, random_state=42, stratify=labels
+)
+
+# ── Single Decision Tree ──
+single_tree = DecisionTreeClassifier(max_depth=4, random_state=42)
+single_tree.fit(X_train, y_train)
+y_pred_tree = single_tree.predict(X_test)
+
+# ── Random Forest ──
+forest = RandomForestClassifier(n_estimators=200, max_depth=6, random_state=42, oob_score=True)
+forest.fit(X_train, y_train)
+y_pred_forest = forest.predict(X_test)
+
+print("=" * 50)
+print("COMPARISON: Single Tree vs Random Forest")
+print("=" * 50)
+
+print(f"\nSingle Decision Tree (depth=4):")
+print(f"  Test Accuracy: {accuracy_score(y_test, y_pred_tree):.4f}")
+
+print(f"\nRandom Forest (200 trees, depth=6):")
+print(f"  Test Accuracy:  {accuracy_score(y_test, y_pred_forest):.4f}")
+print(f"  OOB Score:      {forest.oob_score_:.4f}")
+
+print(f"\nDetailed Random Forest Report:")
+print(classification_report(y_test, y_pred_forest, target_names=['Normal', 'Failure']))
+```
+
+<Card title="Out-of-Bag Score" icon="star">
+Each tree in the forest is trained on a random subset (with replacement) of the training data. The samples left out of that subset are called "out-of-bag" (OOB) samples. The forest evaluates each tree on its OOB samples and averages the results. This gives you a validation score for free, without needing a separate validation set. If the OOB score is close to your test accuracy, your model is generalizing well.
+</Card>
+
+## Step 5: Feature Importance
+
+<InArticleAd />
+
+
+One of the greatest advantages of tree-based models: they tell you which features matter most. Feature importance measures how much each feature contributes to reducing prediction error across all the splits in all the trees.
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+
+np.random.seed(42)
+
+# ── Generate dataset ──
+n_samples = 600
+vibration = np.random.exponential(2.0, n_samples) + 1.0
+temperature = np.random.normal(65, 12, n_samples)
+operating_hours = np.random.uniform(100, 10000, n_samples)
+
+failure_score = (
+    0.3 * (vibration - 3.0) +
+    0.2 * (temperature - 70) / 10 +
+    0.1 * (operating_hours - 5000) / 2000 +
+    0.4 * (vibration - 3.0) * (temperature - 70) / 100
+    + np.random.randn(n_samples) * 0.5
+)
+threshold_val = np.percentile(failure_score, 85)
+labels = (failure_score > threshold_val).astype(int)
+
+X = np.column_stack([vibration, temperature, operating_hours])
+feature_names = ['Vibration (mm/s)', 'Temperature (C)', 'Operating Hours']
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, labels, test_size=0.3, random_state=42, stratify=labels
+)
+
+forest = RandomForestClassifier(n_estimators=200, max_depth=6, random_state=42)
+forest.fit(X_train, y_train)
+
+# ── Feature Importance ──
+importances = forest.feature_importances_
+std = np.std([tree.feature_importances_ for tree in forest.estimators_], axis=0)
+
+print("Feature Importance (Random Forest):")
+print(f"{'Feature':<22} {'Importance':<12} {'Std Dev':<10}")
+print("-" * 44)
+
+sorted_idx = np.argsort(importances)[::-1]
+for idx in sorted_idx:
+    ratio = importances[idx] / importances[sorted_idx[-1]]
+    print(f"  {feature_names[idx]:<20} {importances[idx]:<12.4f} {std[idx]:<10.4f} ({ratio:.1f}x most important)")
+
+# ── Bar chart ──
+plt.figure(figsize=(8, 5))
+sorted_idx = np.argsort(importances)
+plt.barh(range(len(feature_names)),
+         importances[sorted_idx],
+         xerr=std[sorted_idx],
+         color=['#4682b4', '#5f9ea0', '#e8725c'],
+         align='center', capsize=5)
+plt.yticks(range(len(feature_names)), [feature_names[i] for i in sorted_idx])
+plt.xlabel('Feature Importance')
+plt.title('Which Sensor Matters Most for Predicting Failure?')
+plt.grid(True, alpha=0.3, axis='x')
+plt.tight_layout()
+plt.savefig('feature_importance.png', dpi=100)
+plt.show()
+
+print("\nInterpretation:")
+top_feat = feature_names[sorted_idx[-1]]
+print(f"  {top_feat} is the most important predictor of equipment failure.")
+print(f"  This makes physical sense: vibration is a direct indicator of mechanical wear.")
+print(f"  Temperature is secondary, and operating hours contribute the least.")
+print(f"\n  In practice, this tells you where to invest in better sensors.")
+print(f"\nPlot saved as feature_importance.png")
+```
+
+## Step 6: Complete Pipeline with Comparison
+
+<InArticleAd />
+
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, f1_score
+
+np.random.seed(42)
+
+# ── Generate dataset ──
+n_samples = 600
+vibration = np.random.exponential(2.0, n_samples) + 1.0
+temperature = np.random.normal(65, 12, n_samples)
+operating_hours = np.random.uniform(100, 10000, n_samples)
+
+failure_score = (
+    0.3 * (vibration - 3.0) +
+    0.2 * (temperature - 70) / 10 +
+    0.1 * (operating_hours - 5000) / 2000 +
+    0.4 * (vibration - 3.0) * (temperature - 70) / 100
+    + np.random.randn(n_samples) * 0.5
+)
+threshold_val = np.percentile(failure_score, 85)
+labels = (failure_score > threshold_val).astype(int)
+
+X = np.column_stack([vibration, temperature, operating_hours])
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, labels, test_size=0.3, random_state=42, stratify=labels
+)
+
+# ── Scale for logistic regression ──
+scaler = StandardScaler()
+X_train_s = scaler.fit_transform(X_train)
+X_test_s = scaler.transform(X_test)
+
+# ── Models ──
+models = {
+    'Logistic Regression': LogisticRegression(random_state=42, max_iter=1000),
+    'Decision Tree (depth=4)': DecisionTreeClassifier(max_depth=4, random_state=42),
+    'Decision Tree (depth=10)': DecisionTreeClassifier(max_depth=10, random_state=42),
+    'Random Forest (100 trees)': RandomForestClassifier(n_estimators=100, max_depth=6, random_state=42),
+    'Random Forest (500 trees)': RandomForestClassifier(n_estimators=500, max_depth=6, random_state=42),
+}
+
+print(f"{'Model':<30} {'Train Acc':<12} {'Test Acc':<12} {'Test F1':<10} {'CV Mean':<10}")
+print("=" * 74)
+
+cv_scores_dict = {}
+
+for name, model in models.items():
+    # Use scaled data for logistic regression, raw for trees
+    if 'Logistic' in name:
+        model.fit(X_train_s, y_train)
+        train_acc = accuracy_score(y_train, model.predict(X_train_s))
+        test_acc = accuracy_score(y_test, model.predict(X_test_s))
+        test_f1 = f1_score(y_test, model.predict(X_test_s))
+        cv = cross_val_score(model, X_train_s, y_train, cv=5, scoring='accuracy')
+    else:
+        model.fit(X_train, y_train)
+        train_acc = accuracy_score(y_train, model.predict(X_train))
+        test_acc = accuracy_score(y_test, model.predict(X_test))
+        test_f1 = f1_score(y_test, model.predict(X_test))
+        cv = cross_val_score(model, X_train, y_train, cv=5, scoring='accuracy')
+
+    cv_scores_dict[name] = cv
+    print(f"{name:<30} {train_acc:<12.4f} {test_acc:<12.4f} {test_f1:<10.4f} {cv.mean():<10.4f}")
+
+# ── Visualization: cross-validation scores ──
+plt.figure(figsize=(10, 5))
+positions = range(len(cv_scores_dict))
+plt.boxplot(cv_scores_dict.values(), labels=[n.replace(' (', '\n(') for n in cv_scores_dict.keys()],
+            patch_artist=True,
+            boxprops=dict(facecolor='steelblue', alpha=0.5))
+plt.ylabel('Accuracy')
+plt.title('5-Fold Cross-Validation: Model Comparison')
+plt.grid(True, alpha=0.3, axis='y')
+plt.xticks(fontsize=8)
+plt.tight_layout()
+plt.savefig('model_comparison.png', dpi=100)
+plt.show()
+
+print("\nKey observations:")
+print("  1. Deep trees overfit (high train accuracy, lower test accuracy).")
+print("  2. Random forests are more stable and score higher on test data.")
+print("  3. Logistic regression struggles with the nonlinear decision boundary.")
+print("  4. Cross-validation gives a more reliable estimate than a single test split.")
+print("\nPlot saved as model_comparison.png")
+```
+
+## Key Takeaways
+
+<InArticleAd />
+
+
+<Steps>
+1. **Decision trees are flowcharts the model discovers from data.** At each node, the tree picks the feature and threshold that best separates the classes. You can read and understand the rules.
+
+2. **Deep trees overfit, shallow trees underfit.** The `max_depth` parameter controls complexity. Use cross-validation to find the right depth.
+
+3. **Random forests are ensembles of decorrelated trees.** Each tree is trained on a random subset of data and features. The ensemble vote is more robust than any single tree.
+
+4. **Feature importance tells you which inputs matter.** This is actionable information: invest in better sensors for the most important features, or drop irrelevant features to simplify the model.
+
+5. **Trees do not need feature scaling.** Unlike logistic regression and gradient descent, trees split on thresholds, so the scale of features does not matter.
+
+6. **Cross-validation gives reliable performance estimates.** A single train/test split can be lucky or unlucky. K-fold cross-validation averages over K splits.
+</Steps>
+
+## What is Next
+
+<InArticleAd />
+
+
+In [Lesson 5: How Models Learn: Gradient Descent](./how-models-learn-gradient-descent), you will look under the hood at how models actually learn. Trees use a different mechanism (recursive splitting), but most ML models, including logistic regression, neural networks, and deep learning, learn through gradient descent. Understanding gradient descent is understanding the engine behind modern AI.
+
+<MlAiFundamentalsComments />
+
+
+
+<InArticleAd />
+<TawkWidget />
+<Copyright />

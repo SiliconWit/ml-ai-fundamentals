@@ -1,0 +1,95 @@
+---
+title: "ML/AI Fundamentals"
+description: "Learn machine learning from first principles. Nine lessons that connect curve fitting, linear algebra, and calculus to modern ML techniques. Complete, runnable Python code in every lesson."
+pubDate: 2026-03-01
+tags: ["machine-learning", "ai", "python", "numpy", "scikit-learn", "linear-regression", "classification", "gradient-descent", "neural-networks"]
+excerpt: "You already know curve fitting. Machine learning is that idea, generalized. This course takes engineers who know Python, NumPy, and basic math and builds their ML foundations with complete, runnable code in every lesson."
+heroImage: "https://cdn.siliconwit.com/education/ml-ai-fundamentals/ml-ai-fundamentals-overview.png"
+---
+
+import Copyright from '../../../../components/Copyright.astro';
+import TawkWidget from '../../../../components/TawkWidget.astro';
+import { Card, CardGrid, Badge, Steps } from '@astrojs/starlight/components';
+
+You already know curve fitting. Machine learning is that idea, generalized. Instead of fitting a polynomial to a handful of points by hand, you let the computer discover the best function from thousands (or millions) of data points. The math underneath is the same calculus, linear algebra, and statistics you have already studied. This course connects those foundations to the tools and techniques that power modern ML, with complete Python code you can run in every lesson. #MachineLearning #Python #Engineering
+
+## What This Course Covers
+
+<CardGrid>
+  <Card title="Lesson 1: What Machine Learning Actually Is" icon="star">
+    [What Machine Learning Actually Is](./what-machine-learning-actually-is). Start with curve fitting. Move to train/test splits. See overfitting and underfitting with your own eyes. Understand the central tension of all ML: models that are too simple miss patterns, models that are too complex memorize noise.
+  </Card>
+
+  <Card title="Lesson 2: Linear Regression and Prediction" icon="document">
+    [Linear Regression and Prediction](./linear-regression-prediction). Predict indoor temperature from outdoor temperature, humidity, and time of day. Build the full scikit-learn pipeline: feature scaling, train/test split, evaluation metrics, residual analysis.
+  </Card>
+
+  <Card title="Lesson 3: Classification: Yes or No Decisions" icon="document">
+    [Classification: Yes or No Decisions](./classification-yes-or-no). Detect defective sensor boards from test measurements. Logistic regression, confusion matrices, precision, recall, ROC curves, and the problem of class imbalance.
+  </Card>
+
+  <Card title="Lesson 4: Decision Trees and Random Forests" icon="document">
+    [Decision Trees and Random Forests](./decision-trees-random-forests). Predict equipment failure from vibration, temperature, and operating hours. Visualize the decision rules the model discovers. Compare single trees to random forests.
+  </Card>
+
+  <Card title="Lesson 5: How Models Learn: Gradient Descent" icon="document">
+    [How Models Learn: Gradient Descent](./how-models-learn-gradient-descent). Implement gradient descent from scratch in 25 lines of NumPy. Watch the loss decrease iteration by iteration. Understand learning rate, batch size, and why this is the engine behind all modern ML.
+  </Card>
+
+  <Card title="Lesson 6: Neural Networks from Scratch" icon="document">
+    Neural Networks from Scratch (coming soon). Build a two-layer neural network using only NumPy. Forward pass, backpropagation, activation functions, and the universal approximation theorem.
+  </Card>
+
+  <Card title="Lesson 7: Regularization and Model Selection" icon="document">
+    Regularization and Model Selection (coming soon). L1 and L2 regularization, cross-validation, hyperparameter tuning, and the bias-variance tradeoff in practice.
+  </Card>
+
+  <Card title="Lesson 8: Unsupervised Learning and Clustering" icon="document">
+    Unsupervised Learning and Clustering (coming soon). K-means, PCA for dimensionality reduction, and anomaly detection without labels.
+  </Card>
+
+  <Card title="Lesson 9: From Fundamentals to Production" icon="rocket">
+    From Fundamentals to Production (coming soon). Data pipelines, model persistence, basic deployment patterns, and the bridge to SiliconWit's Edge AI / TinyML course.
+  </Card>
+</CardGrid>
+
+## Prerequisites
+
+<Badge text="Python and basic math required" variant="caution" />
+
+**You should be comfortable with:**
+- Python programming (functions, loops, lists, dictionaries)
+- NumPy basics (arrays, broadcasting, vectorized operations)
+- Basic math: algebra, derivatives, matrix multiplication
+
+**Helpful but not required:**
+- The [Applied Mathematics](/education/applied-mathematics/) course on SiliconWit (we reference it when relevant)
+- Probability and statistics concepts
+- Experience with Matplotlib for plotting
+
+## Setup
+
+All lessons use the same Python environment. Install the dependencies once:
+
+```bash
+pip install numpy matplotlib scikit-learn
+```
+
+Every code block in this course is complete and runnable. Copy it, paste it into a `.py` file or a Jupyter notebook, and run it. Every script uses `np.random.seed(42)` so you will get the same numbers and plots we show.
+
+## Where This Course Leads
+
+<Steps>
+1. **ML/AI Fundamentals (this course)**
+   Understand the core ideas: fitting, generalization, loss functions, gradient descent, and evaluation.
+
+2. **Edge AI / TinyML**
+   Take trained models and deploy them on microcontrollers. The [Edge AI / TinyML course](/education/edge-ai-tinyml/) picks up where this course leaves off.
+
+3. **IoT Systems**
+   Combine ML inference with sensor networks and cloud integration in the [IoT Systems course](/education/iot-systems/).
+</Steps>
+
+<Copyright />
+
+<TawkWidget />

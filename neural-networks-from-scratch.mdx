@@ -1,0 +1,507 @@
+---
+title: "Neural Networks from Scratch"
+description: "Build a neural network in pure NumPy. Understand forward passes, backpropagation, and training loops by implementing every step yourself. Solve the XOR problem and classify sensor readings into normal, warning, and critical states."
+contributors: "sam-macharia"
+pubDate: 2026-03-06
+tags: ["neural-networks", "machine-learning", "numpy", "backpropagation", "deep-learning", "python", "from-scratch"]
+excerpt: "Implement a 2-layer neural network from scratch using only NumPy. Walk through weighted sums, activation functions, loss computation, and backpropagation step by step. Train on the XOR problem, then classify synthetic sensor readings into three severity classes."
+heroImage: "https://cdn.siliconwit.com/education/ml-ai-fundamentals/neural-networks-from-scratch.png"
+---
+
+import TawkWidget from '../../../../components/TawkWidget.astro';
+import UniversalContentContributors from '../../../../components/UniversalContentContributors.astro';
+import InArticleAd from '../../../../components/InArticleAd.astro';
+import Copyright from '../../../../components/Copyright.astro';
+import BionicText from '../../../../components/BionicText.astro';
+import TailwindWrapper from '../../../../components/TailwindWrapper.jsx';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/starlight/components';
+
+<UniversalContentContributors 
+  contributors={frontmatter.contributors}
+/>
+
+
+
+import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/MlAiFundamentalsComments.astro';
+
+A neural network is not magic. It is a sequence of matrix multiplications followed by nonlinear functions, repeated layer by layer. In this lesson you will build one from scratch using nothing but NumPy, and you will see every number that flows through it. By the end you will have trained a network to solve problems that linear models cannot touch. #NeuralNetworks #Backpropagation #NumPy
+
+## A Single Neuron
+
+Every neural network starts with this building block: a neuron takes inputs, multiplies each by a weight, adds a bias, and passes the result through an activation function.
+
+```text
+  A Single Neuron
+  ──────────────────────────────────────────
+  Inputs       Weights      Sum + Bias    Activation
+  ──────       ───────      ──────────    ──────────
+  x1 ─── w1 ──┐
+               ├──► z = w1*x1 + w2*x2 + b ──► a = f(z)
+  x2 ─── w2 ──┘
+
+  f(z) is a nonlinear function (sigmoid, ReLU, etc.)
+  Without f(z), stacking layers would collapse to a single linear transform.
+```
+
+<Card title="Why Nonlinearity Matters" icon="star">
+If every neuron were just a linear function (output = weights * inputs + bias), then stacking 100 layers would still produce a linear function. You could replace the entire network with a single layer. Nonlinear activation functions break this limitation and allow networks to learn curved decision boundaries, thresholds, and complex patterns.
+</Card>
+
+```python
+import numpy as np
+
+np.random.seed(42)
+
+# A single neuron
+def single_neuron(x, w, b):
+    """Weighted sum + bias, then sigmoid activation."""
+    z = np.dot(x, w) + b
+    a = 1 / (1 + np.exp(-z))  # sigmoid
+    return a
+
+# Two inputs
+x = np.array([0.5, 0.8])
+w = np.array([0.3, -0.1])
+b = 0.2
+
+output = single_neuron(x, w, b)
+print(f"Inputs:     {x}")
+print(f"Weights:    {w}")
+print(f"Bias:       {b}")
+print(f"Weighted sum: {np.dot(x, w) + b:.4f}")
+print(f"After sigmoid: {output:.4f}")
+```
+
+**Expected output:**
+
+```text
+Inputs:     [0.5 0.8]
+Weights:    [0.3 -0.1]
+Bias:       0.2
+Weighted sum: 0.2700
+After sigmoid: 0.5671
+```
+
+The sigmoid squished the value 0.27 to 0.5671 (always between 0 and 1). That is the entire computation inside one neuron.
+
+## Activation Functions
+
+<InArticleAd />
+
+
+Two activation functions cover most practical cases.
+
+```python
+import numpy as np
+
+np.random.seed(42)
+
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
+
+def sigmoid_derivative(a):
+    """Derivative of sigmoid, given the output a = sigmoid(z)."""
+    return a * (1 - a)
+
+def relu(z):
+    return np.maximum(0, z)
+
+def relu_derivative(z):
+    return (z > 0).astype(float)
+
+# Compare them
+z_values = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
+
+print("z values:       ", z_values)
+print("Sigmoid:        ", np.round(sigmoid(z_values), 4))
+print("Sigmoid deriv:  ", np.round(sigmoid_derivative(sigmoid(z_values)), 4))
+print("ReLU:           ", relu(z_values))
+print("ReLU deriv:     ", relu_derivative(z_values))
+```
+
+**Expected output:**
+
+```text
+z values:        [-2. -1.  0.  1.  2.]
+Sigmoid:         [0.1192 0.2689 0.5    0.7311 0.8808]
+Sigmoid deriv:   [0.1050 0.1966 0.25   0.1966 0.1050]
+ReLU:            [0. 0. 0. 1. 2.]
+ReLU deriv:      [0. 0. 0. 1. 1.]
+```
+
+**Sigmoid** squishes any value into (0, 1). Useful for output layers where you want a probability. **ReLU** (Rectified Linear Unit) passes positive values through and zeros out negatives. It is simple, fast, and avoids the vanishing gradient problem that plagues deep sigmoid networks.
+
+## The XOR Problem
+
+<InArticleAd />
+
+
+XOR is the classic test: the output is 1 when exactly one input is 1, and 0 otherwise. A single layer (linear model) cannot solve this because the classes are not linearly separable. A two-layer network can.
+
+```text
+  XOR Truth Table          Why Linear Models Fail
+  ────────────────         ──────────────────────
+  x1  x2  │  y            x2
+   0   0  │  0             1 ──── ● (0,1)=1    ○ (1,1)=0
+   0   1  │  1             │
+   1   0  │  1             │  No single straight line
+   1   1  │  0             │  separates ● from ○
+                            0 ──── ○ (0,0)=0    ● (1,0)=1
+                                   0            1   x1
+```
+
+### Building a 2-Layer Network
+
+```text
+  Network Architecture for XOR
+  ──────────────────────────────────────────
+  Input Layer     Hidden Layer (4 neurons)    Output Layer
+  (2 neurons)     ReLU activation             (1 neuron)
+                                              Sigmoid activation
+  x1 ────┬──── h1 ────┐
+         ├──── h2 ────┤
+         ├──── h3 ────├──── y_pred
+         └──── h4 ────┘
+  x2 ────┘
+
+  Shapes:
+  X:          (4, 2)     4 samples, 2 features
+  W_hidden:   (2, 4)     2 inputs to 4 hidden neurons
+  b_hidden:   (1, 4)     one bias per hidden neuron
+  W_output:   (4, 1)     4 hidden neurons to 1 output
+  b_output:   (1, 1)     one bias for output
+```
+
+```python
+import numpy as np
+
+np.random.seed(42)
+
+# Activation functions
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
+
+def sigmoid_derivative(a):
+    return a * (1 - a)
+
+def relu(z):
+    return np.maximum(0, z)
+
+def relu_derivative(z):
+    return (z > 0).astype(float)
+
+# XOR data
+X = np.array([[0, 0],
+              [0, 1],
+              [1, 0],
+              [1, 1]])
+y = np.array([[0], [1], [1], [0]])
+
+# Initialize weights (small random values)
+W1 = np.random.randn(2, 4) * 0.5   # input to hidden
+b1 = np.zeros((1, 4))
+W2 = np.random.randn(4, 1) * 0.5   # hidden to output
+b2 = np.zeros((1, 1))
+
+learning_rate = 0.5
+epochs = 10000
+
+print("Initial weights W1:\n", np.round(W1, 4))
+print("Initial weights W2:\n", np.round(W2, 4))
+
+losses = []
+
+for epoch in range(epochs):
+    # Forward pass
+    z1 = X @ W1 + b1          # (4, 4)
+    a1 = relu(z1)             # hidden activations
+    z2 = a1 @ W2 + b2         # (4, 1)
+    a2 = sigmoid(z2)          # output prediction
+
+    # Loss (MSE)
+    loss = np.mean((y - a2) ** 2)
+    losses.append(loss)
+
+    # Backpropagation
+    # Output layer gradients
+    d_loss_a2 = -2 * (y - a2) / len(y)         # dL/da2
+    d_a2_z2 = sigmoid_derivative(a2)            # da2/dz2
+    delta2 = d_loss_a2 * d_a2_z2               # (4, 1)
+
+    dW2 = a1.T @ delta2                         # (4, 1)
+    db2 = np.sum(delta2, axis=0, keepdims=True)
+
+    # Hidden layer gradients
+    delta1 = (delta2 @ W2.T) * relu_derivative(z1)  # (4, 4)
+    dW1 = X.T @ delta1                               # (2, 4)
+    db1 = np.sum(delta1, axis=0, keepdims=True)
+
+    # Update weights
+    W1 -= learning_rate * dW1
+    b1 -= learning_rate * db1
+    W2 -= learning_rate * dW2
+    b2 -= learning_rate * db2
+
+    if epoch % 2000 == 0:
+        print(f"Epoch {epoch:5d} | Loss: {loss:.6f}")
+
+print(f"Epoch {epochs:5d} | Loss: {losses[-1]:.6f}")
+print("\nFinal predictions:")
+for i in range(len(X)):
+    print(f"  Input: {X[i]} -> Predicted: {a2[i][0]:.4f} | Target: {y[i][0]}")
+
+print("\nFinal weights W1:\n", np.round(W1, 4))
+print("Final weights W2:\n", np.round(W2, 4))
+```
+
+**Expected output (approximate):**
+
+```text
+Initial weights W1:
+ [[ 0.2484  0.4607 -0.1539  0.4004]
+  [ 0.1218 -0.3417 -0.1758 -0.0387]]
+Initial weights W2:
+ [[ 0.3869]
+  [-0.0297]
+  [-0.1047]
+  [-0.0822]]
+Epoch     0 | Loss: 0.273703
+Epoch  2000 | Loss: 0.002104
+Epoch  4000 | Loss: 0.000490
+Epoch  6000 | Loss: 0.000222
+Epoch  8000 | Loss: 0.000130
+Epoch 10000 | Loss: 0.000087
+
+Final predictions:
+  Input: [0 0] -> Predicted: 0.0078 | Target: 0
+  Input: [0 1] -> Predicted: 0.9901 | Target: 1
+  Input: [1 0] -> Predicted: 0.9904 | Target: 1
+  Input: [1 1] -> Predicted: 0.0123 | Target: 0
+```
+
+The network learned XOR. A linear model would be stuck at ~50% accuracy on this problem forever.
+
+## Understanding Backpropagation
+
+<InArticleAd />
+
+
+Backpropagation is the chain rule applied backwards through the network. Each layer computes: "How much did my weights contribute to the total error?"
+
+<Steps>
+
+1. **Forward pass**: compute predictions layer by layer.
+
+2. **Compute loss**: how far off are the predictions? (MSE in our case.)
+
+3. **Output layer gradient**: compute how the loss changes with respect to the output weights. This uses the derivative of the sigmoid and the derivative of MSE.
+
+4. **Hidden layer gradient**: propagate the error backward through the output weights and multiply by the derivative of ReLU. This tells each hidden neuron how much it contributed to the error.
+
+5. **Update weights**: subtract learning_rate * gradient from each weight. Repeat.
+
+</Steps>
+
+```text
+  Backpropagation Flow
+  ──────────────────────────────────────────
+  Forward:  X ──► z1 ──► a1 ──► z2 ──► a2 ──► Loss
+                  W1      ReLU   W2     Sigmoid  MSE
+
+  Backward: X ◄── dW1 ◄── delta1 ◄── dW2 ◄── delta2 ◄── dLoss
+            Each layer asks:
+            "How much did I contribute to the error?"
+            Then adjusts weights to reduce that contribution.
+```
+
+## Classifying Sensor Readings (3 Classes)
+
+<InArticleAd />
+
+
+Now a more practical problem. Given temperature and vibration readings from an industrial sensor, classify each reading as normal (0), warning (1), or critical (2).
+
+```python
+import numpy as np
+
+np.random.seed(42)
+
+# Generate synthetic sensor data
+n_samples = 300
+
+# Normal: temp 20-40, vibration 0.5-2.0
+temp_normal = np.random.uniform(20, 40, n_samples // 3)
+vib_normal = np.random.uniform(0.5, 2.0, n_samples // 3)
+
+# Warning: temp 35-55, vibration 1.5-4.0
+temp_warning = np.random.uniform(35, 55, n_samples // 3)
+vib_warning = np.random.uniform(1.5, 4.0, n_samples // 3)
+
+# Critical: temp 50-80, vibration 3.5-7.0
+temp_critical = np.random.uniform(50, 80, n_samples // 3)
+vib_critical = np.random.uniform(3.5, 7.0, n_samples // 3)
+
+X = np.vstack([
+    np.column_stack([temp_normal, vib_normal]),
+    np.column_stack([temp_warning, vib_warning]),
+    np.column_stack([temp_critical, vib_critical]),
+])
+
+# One-hot encode labels
+y = np.zeros((n_samples, 3))
+y[:100, 0] = 1   # normal
+y[100:200, 1] = 1  # warning
+y[200:, 2] = 1   # critical
+
+# Normalize inputs
+X_mean = X.mean(axis=0)
+X_std = X.std(axis=0)
+X_norm = (X - X_mean) / X_std
+
+# Shuffle
+indices = np.random.permutation(n_samples)
+X_norm = X_norm[indices]
+y = y[indices]
+
+# Split: 80% train, 20% test
+split = int(0.8 * n_samples)
+X_train, X_test = X_norm[:split], X_norm[split:]
+y_train, y_test = y[:split], y[split:]
+
+def softmax(z):
+    exp_z = np.exp(z - np.max(z, axis=1, keepdims=True))
+    return exp_z / exp_z.sum(axis=1, keepdims=True)
+
+def relu(z):
+    return np.maximum(0, z)
+
+def relu_derivative(z):
+    return (z > 0).astype(float)
+
+# Network: 2 inputs -> 16 hidden (ReLU) -> 3 outputs (softmax)
+W1 = np.random.randn(2, 16) * 0.3
+b1 = np.zeros((1, 16))
+W2 = np.random.randn(16, 3) * 0.3
+b2 = np.zeros((1, 3))
+
+learning_rate = 0.1
+epochs = 3000
+
+for epoch in range(epochs):
+    # Forward
+    z1 = X_train @ W1 + b1
+    a1 = relu(z1)
+    z2 = a1 @ W2 + b2
+    a2 = softmax(z2)
+
+    # Cross-entropy loss
+    loss = -np.mean(np.sum(y_train * np.log(a2 + 1e-8), axis=1))
+
+    # Backward
+    delta2 = (a2 - y_train) / len(y_train)
+    dW2 = a1.T @ delta2
+    db2 = np.sum(delta2, axis=0, keepdims=True)
+
+    delta1 = (delta2 @ W2.T) * relu_derivative(z1)
+    dW1 = X_train.T @ delta1
+    db1 = np.sum(delta1, axis=0, keepdims=True)
+
+    W1 -= learning_rate * dW1
+    b1 -= learning_rate * db1
+    W2 -= learning_rate * dW2
+    b2 -= learning_rate * db2
+
+    if epoch % 500 == 0:
+        preds = np.argmax(a2, axis=1)
+        targets = np.argmax(y_train, axis=1)
+        acc = np.mean(preds == targets)
+        print(f"Epoch {epoch:4d} | Loss: {loss:.4f} | Train Acc: {acc:.2%}")
+
+# Test evaluation
+z1_test = X_test @ W1 + b1
+a1_test = relu(z1_test)
+z2_test = a1_test @ W2 + b2
+a2_test = softmax(z2_test)
+
+test_preds = np.argmax(a2_test, axis=1)
+test_targets = np.argmax(y_test, axis=1)
+test_acc = np.mean(test_preds == test_targets)
+
+print(f"\nTest Accuracy: {test_acc:.2%}")
+
+labels = ["Normal", "Warning", "Critical"]
+print("\nSample predictions (first 10 test samples):")
+for i in range(10):
+    pred_label = labels[test_preds[i]]
+    true_label = labels[test_targets[i]]
+    confidence = a2_test[i][test_preds[i]]
+    status = "correct" if test_preds[i] == test_targets[i] else "WRONG"
+    print(f"  Predicted: {pred_label:8s} ({confidence:.2%}) | "
+          f"Actual: {true_label:8s} | {status}")
+```
+
+**Expected output (approximate):**
+
+```text
+Epoch    0 | Loss: 1.1023 | Train Acc: 33.33%
+Epoch  500 | Loss: 0.3541 | Train Acc: 87.50%
+Epoch 1000 | Loss: 0.1892 | Train Acc: 93.33%
+Epoch 1500 | Loss: 0.1284 | Train Acc: 95.83%
+Epoch 2000 | Loss: 0.0974 | Train Acc: 96.67%
+Epoch 2500 | Loss: 0.0785 | Train Acc: 97.08%
+
+Test Accuracy: 95.00%
+
+Sample predictions (first 10 test samples):
+  Predicted: Warning  (88.42%) | Actual: Warning  | correct
+  Predicted: Critical (97.13%) | Actual: Critical | correct
+  Predicted: Normal   (99.01%) | Actual: Normal   | correct
+  ...
+```
+
+The network architecture uses softmax in the output layer for multi-class classification. Softmax converts raw scores into probabilities that sum to 1 across all classes.
+
+```text
+  3-Class Sensor Classification Network
+  ──────────────────────────────────────────
+  Input (2)       Hidden (16)        Output (3)
+  ─────────       ───────────        ──────────
+  Temperature ──┬── h1              ┌─ Normal   (softmax)
+                ├── h2              │
+                ├── h3  ────────────├─ Warning  (softmax)
+                ├── ...             │
+                └── h16             └─ Critical (softmax)
+  Vibration ────┘
+                    ReLU               Probabilities sum to 1.0
+```
+
+## Key Takeaways
+
+<InArticleAd />
+
+
+<CardGrid>
+<Card title="A Neuron" icon="star">
+Weighted sum + bias + activation function. That is the entire computation. Everything else is just organizing neurons into layers.
+</Card>
+<Card title="Forward Pass" icon="right-arrow">
+Input flows through each layer: multiply by weights, add bias, apply activation. The output of one layer is the input to the next.
+</Card>
+<Card title="Backpropagation" icon="left-arrow">
+The chain rule applied backwards. Each layer computes its gradient, which tells us how to adjust its weights to reduce the loss.
+</Card>
+<Card title="What Frameworks Do" icon="setting">
+TensorFlow and PyTorch do exactly what you just coded, but optimized for GPUs, with automatic differentiation, and scaled to millions of parameters. Now you know what happens inside.
+</Card>
+</CardGrid>
+
+Now you know what TensorFlow does internally. It is this: matrix multiplications, nonlinear activations, loss computation, and gradient updates, optimized and scaled to billions of parameters.
+
+<MlAiFundamentalsComments />
+
+
+
+<InArticleAd />
+<TawkWidget />
+<Copyright />
