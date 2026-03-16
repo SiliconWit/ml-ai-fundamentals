@@ -25,7 +25,7 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/MlAiFundamentalsComments.astro';
 
-A neural network is not magic. It is a sequence of matrix multiplications followed by nonlinear functions, repeated layer by layer. In this lesson you will build one from scratch using nothing but NumPy, and you will see every number that flows through it. By the end you will have trained a network to solve problems that linear models cannot touch. #NeuralNetworks #Backpropagation #NumPy
+Logistic regression and decision trees work well when the decision boundary is simple, but they cannot learn features like "this vibration pattern looks abnormal" or "this combination of sensor readings precedes a failure." Neural networks can, because stacking layers of weighted sums and nonlinear activations lets them build increasingly abstract representations of the input. The catch is that this power comes with complexity: backpropagation, vanishing gradients, and weight initialization all hide behind a single call to `model.fit()`. In this lesson you will build a neural network from scratch using nothing but NumPy, see every number that flows through it, and train it to solve problems that linear models cannot touch. #NeuralNetworks #Backpropagation #NumPy
 
 ## A Single Neuron
 

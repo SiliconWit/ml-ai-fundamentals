@@ -25,7 +25,7 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/MlAiFundamentalsComments.astro';
 
-This is the understanding lesson. If you understand gradient descent, you understand how almost every ML model learns. Neural networks, logistic regression, support vector machines, and deep learning all use gradient descent (or a variant of it) to find the best parameters. The idea is simple enough to fit in one sentence: measure how wrong the model is, compute which direction to adjust the parameters, take a small step in that direction, and repeat. That is it. That is all of ML learning. This lesson implements it from scratch so you can see every number change on every iteration. #GradientDescent #Optimization #MachineLearning
+In the previous lessons, scikit-learn and np.polyfit found the best parameters for you automatically. But when something goes wrong, when the model fails to converge, when the loss plateaus, or when training takes forever, you cannot fix what you do not understand. Gradient descent is the single algorithm behind nearly all ML training: neural networks, logistic regression, SVMs, and deep learning all use it (or a variant) to find the best parameters. The idea fits in one sentence: measure how wrong the model is, compute which direction to adjust the parameters, take a small step, and repeat. This lesson implements it from scratch so you can see every number change on every iteration and diagnose problems when they arise. #GradientDescent #Optimization #MachineLearning
 
 ## The Blindfolded Hill Analogy
 
