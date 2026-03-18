@@ -1,7 +1,7 @@
 ---
 title: "Working with Real Sensor Data"
 description: "Handle the messiness of real-world sensor data: missing values, outliers, drift, and noise. Engineer features like rolling averages, rate of change, and FFT peaks. Build a predictive maintenance model that detects pump failures 24 hours early."
-contributors: "sam-macharia"
+contributors: "sam-macharia, joseph-muguro"
 pubDate: 2026-03-08
 tags: ["sensor-data", "feature-engineering", "predictive-maintenance", "machine-learning", "pandas", "time-series", "data-cleaning"]
 excerpt: "Generate a realistic industrial pump dataset with missing values, outliers, and calibration drift. Clean and preprocess the data, engineer time-domain and frequency-domain features, and train a random forest classifier for predictive maintenance that catches 85% of failures 24 hours early."
@@ -50,6 +50,15 @@ ML tutorials use clean datasets. Engineering reality gives you sensor dropouts, 
   │  24.8  │  1.6   │  46.0  │   Gradual drift starts
   │  26.5  │  1.7   │  46.8  │   Calibration shifting
   └────────┴────────┴────────┘
+```
+
+```mermaid
+flowchart TD
+    A[Raw sensor readings\ndropouts, spikes, drift] --> B[Handle missing values\nforward fill or interpolate]
+    B --> C[Detect and remove outliers\nMAD or IQR method]
+    C --> D[Engineer features\nrolling stats, rate of change, FFT peaks]
+    D --> E[Train ML model\non engineered features]
+    E --> F[Predict failures\n24 hours early]
 ```
 
 <Card title="The Core Insight" icon="star">

@@ -1,7 +1,7 @@
 ---
 title: "Practical ML with Scikit-Learn"
 description: "Master the complete ML workflow using Scikit-Learn: data loading, preprocessing pipelines, cross-validation, hyperparameter tuning with GridSearchCV, model comparison, and persistence. Build a reusable template for any ML project."
-contributors: "sam-macharia"
+contributors: "sam-macharia, joseph-muguro"
 pubDate: 2026-03-07
 tags: ["scikit-learn", "machine-learning", "python", "pipeline", "cross-validation", "hyperparameter-tuning", "model-comparison"]
 excerpt: "Build a complete ML pipeline using Scikit-Learn Pipelines, StandardScaler, cross-validation, and GridSearchCV. Compare five regression models on synthetic building sensor data, tune hyperparameters, and save the best model for deployment."
@@ -31,26 +31,18 @@ Every ML project follows the same workflow: load data, explore, preprocess, trai
 
 Every project follows these steps, regardless of the problem domain.
 
-```text
-  The Universal ML Workflow
-  ──────────────────────────────────────────
-  1. Load Data
-     │
-  2. Explore (statistics, distributions, correlations)
-     │
-  3. Preprocess (scale, encode, handle missing values)
-     │
-  4. Split (train / test, or cross-validation)
-     │
-  5. Train Models (fit on training data)
-     │
-  6. Evaluate (score on held-out data)
-     │
-  7. Tune Hyperparameters (GridSearchCV)
-     │
-  8. Select Best Model
-     │
-  9. Save and Deploy (joblib)
+```mermaid
+flowchart TD
+    A[1. Load Data] --> B[2. Explore\nstatistics, distributions, correlations]
+    B --> C[3. Preprocess\nscale, encode, handle missing values]
+    C --> D[4. Split\ntrain / test or cross-validation]
+    D --> E[5. Train Models\nfit on training data]
+    E --> F[6. Evaluate\nscore on held-out data]
+    F --> G{Good enough?}
+    G -- No --> H[7. Tune Hyperparameters\nGridSearchCV]
+    H --> E
+    G -- Yes --> I[8. Select Best Model]
+    I --> J[9. Save and Deploy\njoblib]
 ```
 
 <Card title="Why Pipelines?" icon="star">

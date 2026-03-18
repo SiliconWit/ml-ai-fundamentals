@@ -1,7 +1,7 @@
 ---
 title: "From Training to Deployment"
 description: "Deploy ML models three ways: as a Python script, as a Flask REST API, and as C arrays for microcontrollers. Learn model monitoring, data drift detection, and the complete ML lifecycle from training to production retraining."
-contributors: "sam-macharia"
+contributors: "sam-macharia, joseph-muguro"
 pubDate: 2026-03-09
 tags: ["ml-deployment", "flask-api", "model-serving", "edge-deployment", "model-monitoring", "data-drift", "mlops"]
 excerpt: "Take a trained scikit-learn model and deploy it three ways: a batch inference script, a Flask REST API that accepts JSON sensor data and returns predictions, and a C array export for microcontroller firmware. Implement basic model monitoring to detect data drift and know when to retrain."
@@ -31,34 +31,19 @@ You have a trained model that scores well on test data. Now what? A model sittin
 
 Training is one step in a continuous loop. Deployment, monitoring, and retraining complete the cycle.
 
-```text
-  The ML Lifecycle
-  ──────────────────────────────────────────
-
-       ┌─────────────┐
-       │ Collect Data │
-       └──────┬──────┘
-              │
-       ┌──────▼──────┐
-       │ Train Model │
-       └──────┬──────┘
-              │
-       ┌──────▼──────┐
-       │   Deploy    │◄──────────────────┐
-       └──────┬──────┘                   │
-              │                          │
-       ┌──────▼──────┐            ┌──────┴──────┐
-       │   Monitor   │───drift───►│  Retrain    │
-       └──────┬──────┘  detected  └─────────────┘
-              │
-       ┌──────▼──────┐
-       │  Serve      │
-       │ Predictions │
-       └─────────────┘
-
-  Most teams spend 20% of time on training
-  and 80% on everything else.
+```mermaid
+flowchart TD
+    A[Collect Data] --> B[Train Model]
+    B --> C[Deploy]
+    C --> D[Monitor]
+    D --> E[Serve Predictions]
+    D --> F{Drift detected?}
+    F -- Yes --> G[Retrain]
+    G --> C
+    F -- No --> E
 ```
+
+Most teams spend 20% of time on training and 80% on everything else.
 
 ## Step 1: Train and Save the Model
 

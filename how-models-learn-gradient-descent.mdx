@@ -1,7 +1,7 @@
 ---
 title: "How Models Learn: Gradient Descent"
 description: "Implement gradient descent from scratch in NumPy. Understand loss functions, gradients, learning rate, and why gradient descent is the engine behind all modern machine learning. Complete, runnable Python code."
-contributors: "sam-macharia"
+contributors: "sam-macharia, joseph-muguro"
 pubDate: 2026-03-05
 tags: ["gradient-descent", "loss-function", "learning-rate", "optimization", "numpy", "python", "machine-learning", "backpropagation"]
 excerpt: "Implement linear regression via gradient descent in 25 lines of NumPy. Watch the loss decrease iteration by iteration, understand learning rate effects, and connect gradient descent to PID control and feedback systems."
@@ -63,6 +63,17 @@ That is gradient descent. The landscape is the **loss function** (how wrong the 
     - Neural networks
     - Deep learning
     - Transformer models (GPT, etc.)
+```
+
+```mermaid
+flowchart TD
+    A[Initialize weights randomly] --> B[Forward pass:\ncompute predictions]
+    B --> C[Compute loss:\nhow wrong is the model?]
+    C --> D{Loss small enough?}
+    D -- No --> E[Compute gradient:\ndirection of steepest increase]
+    E --> F[Update weights:\nw = w - lr * gradient]
+    F --> B
+    D -- Yes --> G[Training complete]
 ```
 
 ## The Loss Function: How Wrong Is the Model?
