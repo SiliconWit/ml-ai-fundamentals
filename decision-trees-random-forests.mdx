@@ -25,7 +25,11 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/MlAiFundamentalsComments.astro';
 
+import PodcastEmbed from '../../../../components/PodcastEmbed.astro';
+
 Logistic regression draws a straight line through your feature space and says "above the line is class A, below is class B." That works when the boundary between classes is roughly linear. But many real problems have nonlinear boundaries, and for those you need models that can draw curves, angles, and irregular shapes. Decision trees do this naturally. A decision tree is a flowchart that the model discovers from data: "if vibration is above 4.5 mm/s AND temperature is above 80 C, predict failure." Random forests take this further by training hundreds of trees on random subsets of data and letting them vote. The result is one of the most reliable and interpretable model families in practical ML. #DecisionTrees #RandomForests #PredictiveMaintenance
+
+<PodcastEmbed src="https://open.spotify.com/episode/3SUrhG9T10iY6K5TnKW3Ac?si=LF2dafI4QxyE_EjlwmKRlA" />
 
 ## The Problem: Predictive Maintenance
 
@@ -250,8 +254,8 @@ for d, tr, te in zip(depths, train_acc, test_acc):
 
 print(f"\nBest depth: {best_depth} (test accuracy: {best_test_acc:.4f})")
 print(f"Depth 20:   train accuracy = {train_acc[-1]:.4f}, test accuracy = {test_acc[-1]:.4f}")
-print(f"\nSame pattern as Lesson 1: training error always goes down,")
-print(f"test error eventually goes up. Overfitting.")
+print(f"\nSame pattern as the earlier overfitting experiment: training error")
+print(f"always goes down, test error eventually goes up. Overfitting.")
 
 plt.figure(figsize=(8, 5))
 plt.plot(depths, train_acc, 'o-', color='steelblue', label='Training accuracy')
@@ -293,7 +297,7 @@ A single tree is fragile. Change a few training points and the tree can look com
 
   Each tree also uses a random subset of FEATURES
   at each split (not all features). This decorrelates
-  the trees and makes the ensemble more robust.
+  the trees and makes the ensemble more stable.
 ```
 
 ```python
@@ -363,7 +367,7 @@ Each tree in the forest is trained on a random subset (with replacement) of the 
 <InArticleAd />
 
 
-One of the greatest advantages of tree-based models: they tell you which features matter most. Feature importance measures how much each feature contributes to reducing prediction error across all the splits in all the trees.
+One of the greatest advantages of tree-based models: they tell you which features matter most. Feature importance measures how much each feature contributes to reducing node impurity (gini or entropy) across all the splits in all the trees during training. This is computed on the training data, not on held-out test data, so a feature that dominates the training splits but does not generalize will still score high. Treat it as a ranking of what the model used, not a guarantee of real-world predictive power.
 
 ```python
 import numpy as np
@@ -545,7 +549,7 @@ print("\nPlot saved as model_comparison.png")
 
 2. **Deep trees overfit, shallow trees underfit.** The `max_depth` parameter controls complexity. Use cross-validation to find the right depth.
 
-3. **Random forests are ensembles of decorrelated trees.** Each tree is trained on a random subset of data and features. The ensemble vote is more robust than any single tree.
+3. **Random forests are ensembles of decorrelated trees.** Each tree is trained on a random subset of data and features. The ensemble vote is more reliable than any single tree.
 
 4. **Feature importance tells you which inputs matter.** This is actionable information: invest in better sensors for the most important features, or drop irrelevant features to simplify the model.
 
@@ -559,7 +563,7 @@ print("\nPlot saved as model_comparison.png")
 <InArticleAd />
 
 
-In [Lesson 5: How Models Learn: Gradient Descent](./how-models-learn-gradient-descent), you will look under the hood at how models actually learn. Trees use a different mechanism (recursive splitting), but most ML models, including logistic regression, neural networks, and deep learning, learn through gradient descent. Understanding gradient descent is understanding the engine behind modern AI.
+Next, in [How Models Learn: Gradient Descent](./how-models-learn-gradient-descent), you will look under the hood at how models actually learn. Trees use a different mechanism (recursive splitting), but most ML models, including logistic regression, neural networks, and deep learning, learn through gradient descent. Understanding gradient descent is understanding the engine behind modern AI.
 
 <MlAiFundamentalsComments />
 

@@ -366,7 +366,10 @@ for col in ['vibration', 'temperature']:
 df['hour'] = df['timestamp'].dt.hour
 df['day_of_week'] = df['timestamp'].dt.dayofweek
 
-# 5. FFT peak frequency (computed on rolling 24-hour windows)
+# 5. FFT peak frequency (computed on rolling 24-hour windows).
+# This dataset is sampled once per hour, so sample_rate=1 means "1 sample/hour"
+# and the returned frequencies are in cycles-per-hour. For real vibration
+# monitoring you would sample at kHz to catch bearing-fault frequencies in Hz.
 def fft_peak_freq(window, sample_rate=1.0):
     """Return the frequency with the highest magnitude (excluding DC)."""
     if len(window) < 4:

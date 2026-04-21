@@ -471,7 +471,7 @@ No Python, no ML library needed. Just basic float arithmetic.
 The generated header contains the scaler parameters (mean and scale for each feature), a `scale_features()` function, and the decision tree as nested if/else statements. Your MCU firmware calls `scale_features()` on raw sensor readings, then calls `predict()` to get the class index.
 
 <Card title="Connecting to Edge AI" icon="star">
-This C export approach works for simple models (decision trees, small neural networks). For more complex models like convolutional neural networks or LSTMs, use TensorFlow Lite for Microcontrollers, which provides a full inference runtime on MCUs. See the [Edge AI / TinyML course](/education/edge-ai-tinyml/tinyml-machine-learning-microcontrollers/) for deploying quantized TensorFlow models on ESP32 and STM32.
+This C export approach works for simple models (decision trees, small neural networks). For more complex models like convolutional neural networks or LSTMs, use TensorFlow Lite for Microcontrollers, which provides a full inference runtime on MCUs. See the [Edge AI / TinyML course](/education/edge-ai-tinyml/) for deploying quantized TensorFlow models on ESP32 and STM32.
 </Card>
 
 ## Model Monitoring: Detecting Drift

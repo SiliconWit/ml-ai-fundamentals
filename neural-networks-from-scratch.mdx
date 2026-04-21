@@ -395,7 +395,8 @@ for epoch in range(epochs):
     z2 = a1 @ W2 + b2
     a2 = softmax(z2)
 
-    # Cross-entropy loss
+    # Cross-entropy loss. The 1e-8 is a numerical safety epsilon:
+    # softmax outputs can be extremely small, and log(0) is -inf.
     loss = -np.mean(np.sum(y_train * np.log(a2 + 1e-8), axis=1))
 
     # Backward

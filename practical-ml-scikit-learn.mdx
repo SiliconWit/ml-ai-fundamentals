@@ -1,6 +1,6 @@
 ---
 title: "Practical ML with Scikit-Learn"
-description: "Master the complete ML workflow using Scikit-Learn: data loading, preprocessing pipelines, cross-validation, hyperparameter tuning with GridSearchCV, model comparison, and persistence. Build a reusable template for any ML project."
+description: "Build the complete ML workflow using Scikit-Learn: data loading, preprocessing pipelines, cross-validation, hyperparameter tuning with GridSearchCV, model comparison, and persistence. A reusable template for any ML project."
 contributors: "sam-macharia, joseph-muguro"
 pubDate: 2026-03-07
 tags: ["scikit-learn", "machine-learning", "python", "pipeline", "cross-validation", "hyperparameter-tuning", "model-comparison"]
@@ -215,6 +215,8 @@ After polynomial expansion: 44
 
 The pipeline ensures that `StandardScaler` is fit on training data only. When we call `transform` on the test set, it uses the training mean and standard deviation. Polynomial features create interaction terms (temperature * humidity, hour * occupancy, etc.) that can capture nonlinear relationships.
 
+`PolynomialFeatures` expands the feature count fast: 8 original features become 44 at `degree=2` and would balloon to 165 at `degree=3`. More features mean more parameters and more overfitting risk, which is exactly why regularized models like Ridge and Lasso (below) pair well with polynomial expansion.
+
 ## Cross-Validation and Model Comparison
 
 <InArticleAd />
@@ -306,6 +308,9 @@ for name, pipeline in models.items():
           f"(+/- {scores.std():.4f})")
 
 print("\nBest model:", max(results, key=lambda k: results[k].mean()))
+# R-squared is bounded above by 1.0 but can go negative when a model
+# predicts worse than just using the mean of y. A negative CV score is
+# a red flag: check for broken preprocessing, wrong target, or a bug.
 ```
 
 **Expected output (approximate):**

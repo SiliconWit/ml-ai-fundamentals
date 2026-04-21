@@ -25,7 +25,11 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/MlAiFundamentalsComments.astro';
 
-In Lesson 1, you fitted polynomials with `np.polyfit`. That works for one input variable. Real engineering problems have multiple inputs: outdoor temperature, humidity, time of day, building insulation rating, and so on. Linear regression handles this naturally, and scikit-learn makes the pipeline clean and repeatable. In this lesson you will build a complete regression system for predicting indoor temperature from sensor readings, evaluate it with proper metrics, and learn to spot when the model is missing something important. #LinearRegression #ScikitLearn #SensorData
+import PodcastEmbed from '../../../../components/PodcastEmbed.astro';
+
+In the previous lesson, you fitted polynomials with `np.polyfit`. That works for one input variable. Real engineering problems have multiple inputs: outdoor temperature, humidity, time of day, building insulation rating, and so on. Linear regression handles this naturally, and scikit-learn makes the pipeline clean and repeatable. In this lesson you will build a complete regression system for predicting indoor temperature from sensor readings, evaluate it with proper metrics, and learn to spot when the model is missing something important. #LinearRegression #ScikitLearn #SensorData
+
+<PodcastEmbed src="https://open.spotify.com/episode/3UyIV8EnVRtJN5miOmpCaG?si=rQhxrIzBQ46zq0FKugXz1A" />
 
 ## The Problem
 
@@ -112,7 +116,7 @@ print("\nPlot saved as sensor_data_exploration.png")
 Linear regression itself does not require feature scaling for correctness. The math works either way. But scaling matters for two practical reasons:
 
 1. **Coefficient interpretation.** After scaling, the coefficients tell you which feature has the most influence. Without scaling, a coefficient is entangled with the feature's units.
-2. **Numerical stability.** Features with very different scales (humidity in 20 to 95 vs hour in 0 to 23) can cause numerical issues in some algorithms. Gradient descent (Lesson 5) is especially sensitive to this.
+2. **Numerical stability.** Features with very different scales (humidity in 20 to 95 vs hour in 0 to 23) can cause numerical issues in some algorithms. Gradient descent (covered later) is especially sensitive to this.
 
 scikit-learn's `StandardScaler` subtracts the mean and divides by the standard deviation, so every feature ends up with mean 0 and standard deviation 1.
 
@@ -480,6 +484,9 @@ plt.show()
 print("\nThe engineered features capture the daily cycle that raw hour cannot.")
 print("Feature engineering often matters more than the choice of algorithm.")
 print("\nPlot saved as feature_engineering_comparison.png")
+print("Note: the left subplot has hour (0 to 23) on the x-axis while the right")
+print("has sin(2*pi*hour/24). The axes are not directly comparable; what matters")
+print("is the residual pattern (left) versus the lack of it (right).")
 ```
 
 <Card title="Connect to Applied Math" icon="star">
@@ -544,7 +551,7 @@ Here is the full pipeline in one script, from data generation to final evaluatio
 <InArticleAd />
 
 
-In [Lesson 3: Classification: Yes or No Decisions](./classification-yes-or-no), you will move from predicting continuous values to making binary decisions. Instead of "what temperature?" the question becomes "is this sensor board defective?" The math changes only slightly, but the evaluation metrics change completely.
+Next, in [Classification: Yes or No Decisions](./classification-yes-or-no), you will move from predicting continuous values to making binary decisions. Instead of "what temperature?" the question becomes "is this sensor board defective?" The math changes only slightly, but the evaluation metrics change completely.
 
 <MlAiFundamentalsComments />
 

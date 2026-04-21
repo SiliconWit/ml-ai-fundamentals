@@ -25,7 +25,11 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/MlAiFundamentalsComments.astro';
 
+import PodcastEmbed from '../../../../components/PodcastEmbed.astro';
+
 The term "machine learning" sounds like it requires a PhD and a GPU cluster, which stops many engineers from using it even when a simple model would save them weeks of hand-tuning rules. In reality, you already know the core idea: fit a function to data. You have done it every time you called `np.polyfit` on a scatter of measurement points. Everything in ML, from logistic regression to deep neural networks, is a variation on that theme. This lesson makes the connection explicit, then shows you where naive curve fitting breaks down (overfitting, underfitting, the bias-variance tradeoff) and what the discipline of ML adds to fix it. #MachineLearning #CurveFitting #BiasVariance
+
+<PodcastEmbed src="https://open.spotify.com/episode/7eSgZxYuij1pbC6kfQlQJ0?si=NuuZIfWZQeicoHff7UcMFg" />
 
 ## Curve Fitting Is Machine Learning
 
@@ -80,7 +84,7 @@ This is the simplest possible ML model. You gave it data, it found the best line
 <InArticleAd />
 
 
-What happens if you use a more flexible model? Instead of a straight line, fit a polynomial of degree 15.
+What happens if you use a more flexible model? The next example switches to a harder underlying relationship, a sine wave with noise, so you can see how model complexity fails. Instead of a straight line, fit a polynomial of degree 15.
 
 ```python
 import numpy as np
@@ -408,7 +412,7 @@ Run that script. Study the three fits side by side. Look at the error curve. The
 
 3. **Underfitting means your model is too simple.** It cannot capture the real pattern. Increase complexity (more features, higher degree, more flexible model).
 
-4. **Overfitting means your model is too complex.** It captures noise along with the signal. Reduce complexity, get more data, or add regularization (Lesson 7).
+4. **Overfitting means your model is too complex.** It captures noise along with the signal. Reduce complexity, get more data, or add regularization (covered later in the course).
 
 5. **The bias-variance tradeoff guides every decision.** Every model choice, from polynomial degree to neural network depth, trades bias for variance. Your job is to find the sweet spot.
 </Steps>
@@ -418,7 +422,7 @@ Run that script. Study the three fits side by side. Look at the error curve. The
 <InArticleAd />
 
 
-In [Lesson 2: Linear Regression and Prediction](./linear-regression-prediction), you will move from single-variable polynomial fitting to multi-feature linear regression using scikit-learn. You will build a sensor data pipeline, learn feature scaling, and evaluate your model with proper metrics.
+Next, in [Linear Regression and Prediction](./linear-regression-prediction), you will move from single-variable polynomial fitting to multi-feature linear regression using scikit-learn. You will build a sensor data pipeline, learn feature scaling, and evaluate your model with proper metrics.
 
 <MlAiFundamentalsComments />
 
