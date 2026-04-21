@@ -158,6 +158,16 @@ Linear regression outputs any real number. For classification, you need a number
 
 The intuition: logistic regression fits an S-curve instead of a line. The S-curve naturally maps any input to a probability.
 
+<Card title="What Does Logistic Regression Actually Minimize?" icon="star">
+Linear regression minimizes mean squared error. Logistic regression minimizes a different quantity called the **log loss** (also known as **binary cross-entropy**):
+
+```text
+  log_loss = -(1/n) * sum( y*log(p) + (1 - y)*log(1 - p) )
+```
+
+Intuitively, the model is heavily penalized when it is both **confident and wrong** (predicting p = 0.01 when y = 1 costs a lot). It is lightly penalized when it is confident and right. You will see `log_loss` as a metric name in scikit-learn and as `BCELoss` / `CrossEntropyLoss` in PyTorch; it is the same objective.
+</Card>
+
 ## Step 3: Train and Evaluate
 
 <InArticleAd />
@@ -272,6 +282,13 @@ If 95% of boards are good and your model simply predicts "good" for everything, 
 
 
 The logistic regression model outputs a probability. The default decision threshold is 0.5, but you can change it. Lowering the threshold means you flag more boards as defective. You catch more real defects (higher recall) but also flag more good boards (lower precision). Raising the threshold does the opposite.
+
+<Card title="Are These Probabilities Trustworthy?" icon="warning">
+Logistic regression tends to produce reasonably well-calibrated probabilities: if it says p = 0.7, about 70% of such predictions are actually positive. Many other models (SVMs, random forests, gradient boosting, neural networks) do not. A random forest might report 0.9 confidence when the true rate is 0.6.
+
+If your downstream decision depends on the probability itself (for example, expected-cost analysis: `cost_of_flagging * p_defect < cost_of_shipping_bad * (1 - p_defect)`), wrap the model with `sklearn.calibration.CalibratedClassifierCV` to recalibrate. If you only use the predicted class, calibration does not matter.
+</Card>
+
 
 ```python
 import numpy as np

@@ -450,6 +450,13 @@ The rolling standard deviation captures volatility. The ratio of short-term to l
 <InArticleAd />
 
 
+<Card title="Never Use Random Train/Test Split on Time Series" icon="warning">
+The code below uses `X[:split_idx]` and `X[split_idx:]` rather than `train_test_split(X, y, test_size=0.2, random_state=42)`. This is deliberate. A random split picks samples from throughout the series for both train and test, which means the model sees data from October while being evaluated on data from September. Worse, because the rolling mean and diff features mix values from neighboring timestamps, information from the test period leaks directly into the training features. The model memorizes the future.
+
+Always split time series **chronologically**: earliest samples for training, latest samples for testing. For cross-validation, use `TimeSeriesSplit` (introduced in the Practical ML lesson) rather than plain k-fold. This is probably the single most common hidden mistake in predictive-maintenance code online; scores look amazing in the notebook and the model is useless in production.
+</Card>
+
+
 ```python
 import numpy as np
 import pandas as pd

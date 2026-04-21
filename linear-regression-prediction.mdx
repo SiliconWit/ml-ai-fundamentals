@@ -155,6 +155,12 @@ print(f"  Feature stds:   {X_scaled.std(axis=0).round(6)}")
 When you scale features, fit the scaler on the training data only. Then use the same scaler to transform the test data. If you fit on the entire dataset, information from the test set leaks into the training process. This is called **data leakage** and it produces overly optimistic evaluation results.
 </Card>
 
+<Card title="Watch Out for Multicollinearity" icon="warning">
+Notice that outdoor temperature and humidity are correlated (our synthetic data uses `humidity = 60 - 0.5 * outdoor_temp + noise`). When two or more features move together, linear regression cannot cleanly attribute the output to one versus the other. The fit is still accurate, but the **individual coefficients become unstable**: they can swap signs if you refit on slightly different data, and their magnitudes stop reflecting real physical influence.
+
+In engineering datasets this is the norm, not the exception. Sensors that measure related phenomena (temp and pressure, vibration axes, multiple supply rails) are often highly correlated. Quick diagnostics: compute the correlation matrix with `np.corrcoef(X.T)`, or the Variance Inflation Factor (VIF) from `statsmodels`. If two features have correlation above about 0.9, consider dropping one, combining them (principal components), or switching to a regularized model like Ridge regression, covered later in the course.
+</Card>
+
 ## Step 3: Train/Test Split and Model Training
 
 <InArticleAd />
@@ -326,6 +332,14 @@ print("\nPlot saved as regression_evaluation.png")
 
 
 Metrics tell you how wrong the model is. Residual analysis tells you _why_. If the errors show a pattern, the model is missing something systematic.
+
+Residual plots are really a quick check on the three classical linear-regression assumptions:
+
+- **Linearity.** The relationship between features and target is linear. Violation shows up as a curve in the residuals-vs-predicted plot.
+- **Independence and zero mean.** Residuals should scatter around zero with no trend across feature values or time. A drift, cycle, or step in residuals-vs-feature means the model is missing a variable or a nonlinear term.
+- **Homoscedasticity.** The residual spread should be roughly constant. A fan shape (spread growing with the predicted value) means the error variance depends on the input; predictions on large values are less trustworthy than on small ones.
+
+You do not need to check these formally every time, but you should know what each plot is diagnosing.
 
 ```python
 import numpy as np

@@ -132,6 +132,12 @@ ReLU deriv:      [0. 0. 0. 1. 1.]
 
 **Sigmoid** squishes any value into (0, 1). Useful for output layers where you want a probability. **ReLU** (Rectified Linear Unit) passes positive values through and zeros out negatives. It is simple, fast, and avoids the vanishing gradient problem that plagues deep sigmoid networks.
 
+<Card title="Why ReLU Replaced Sigmoid in Hidden Layers" icon="star">
+Look at the sigmoid derivative row above: the largest value is 0.25, reached only at z = 0. For any large positive or negative input, the derivative collapses toward zero. During backpropagation, gradients are multiplied layer by layer. In a network with 10 sigmoid layers, the gradient at the first layer can be scaled by (0.25)^10, about 1 in a million. The early layers stop learning. This is the **vanishing gradient problem**.
+
+ReLU's derivative is 1 for any positive input (and 0 otherwise), so it does not attenuate gradients as they flow backwards. This is the single biggest reason deep networks started working in the 2010s. Use ReLU in hidden layers by default; save sigmoid for output layers where you need a probability.
+</Card>
+
 ## The XOR Problem
 
 <InArticleAd />
@@ -150,6 +156,15 @@ XOR is the classic test: the output is 1 when exactly one input is 1, and 0 othe
                             0 ──── ○ (0,0)=0    ● (1,0)=1
                                    0            1   x1
 ```
+
+### A Note on Weight Initialization
+
+The code below initializes weights as small random Gaussians with a hand-picked scale. That is fine for this 2-layer toy, but if you try to stack 10 ReLU layers with the same scheme, signals either blow up or die out as they travel through the network. Modern frameworks use principled schemes that set the initial variance based on the fan-in and fan-out of each layer:
+
+- **Xavier / Glorot initialization**: pairs well with tanh and sigmoid.
+- **He / Kaiming initialization**: pairs well with ReLU and its variants.
+
+In PyTorch these are `torch.nn.init.xavier_uniform_()` and `torch.nn.init.kaiming_normal_()`. You do not need to memorize the formulas; you need to know that "I just pick small random numbers" stops working once the network is deep, and to use the initializer that matches your activation.
 
 ### Building a 2-Layer Network
 
@@ -494,6 +509,9 @@ The chain rule applied backwards. Each layer computes its gradient, which tells 
 </Card>
 <Card title="What Frameworks Do" icon="setting">
 TensorFlow and PyTorch do exactly what you just coded, but optimized for GPUs, with automatic differentiation, and scaled to millions of parameters. Now you know what happens inside.
+</Card>
+<Card title="Regularizers You Will Meet Next" icon="information">
+Real networks fight overfitting with two standard tools you did not need here. **Dropout** randomly zeros a fraction of activations at each training step, forcing the network to not rely on any single unit. **Batch normalization** rescales activations using running mini-batch statistics, stabilizing training and allowing higher learning rates. Both are one-liners in PyTorch and Keras, and both live inside frameworks rather than in the raw math.
 </Card>
 </CardGrid>
 

@@ -219,6 +219,32 @@ This is appropriate when predictions are needed periodically (hourly, daily) rat
 
 For real-time predictions, wrap the model in an HTTP endpoint. Any device that can send an HTTP request (an ESP32, a Raspberry Pi, a web dashboard) can get predictions.
 
+<Card title="In Production: Validate the Request Payload" icon="warning">
+The simple `required` / `missing` check below is fine for a demo. For anything going to production, use a schema validator so malformed JSON returns a clean 400 instead of crashing inside `np.array()`. The standard choice is **Pydantic**:
+
+```python
+from pydantic import BaseModel, Field, ValidationError
+
+class SensorReading(BaseModel):
+    vibration_g: float = Field(ge=0, le=20)
+    temperature_c: float = Field(ge=-40, le=150)
+    pressure_bar: float = Field(ge=0, le=20)
+    current_a:   float = Field(ge=0, le=100)
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        reading = SensorReading(**request.get_json())
+    except ValidationError as e:
+        return jsonify({'error': e.errors()}), 400
+    # reading is now typed and bounds-checked
+    ...
+```
+
+Pydantic (or `flask-pydantic`, `FastAPI`, `pyiceberg`, and similar) catches missing fields, wrong types, and out-of-range values in one line per field. This prevents the 3 AM page where the API crashes because an ESP32 firmware bug started sending pressure as a string.
+</Card>
+
+
 ```python
 """
 equipment_api.py
@@ -478,6 +504,23 @@ This C export approach works for simple models (decision trees, small neural net
 
 <InArticleAd />
 
+
+Drift detection is only possible if you have been logging. Before you can detect anything, every prediction request should be written to disk (or a database, or a log aggregator) with enough context to reconstruct what happened later.
+
+```python
+# Inside your /predict handler, after returning the response:
+log_record = {
+    'timestamp':       datetime.utcnow().isoformat(),
+    'model_version':   'equipment_health_v1',
+    'features':        reading.model_dump(),   # the Pydantic input
+    'prediction':      labels[prediction],
+    'probabilities':   {labels[i]: float(p) for i, p in enumerate(probabilities)},
+    'request_id':      request.headers.get('X-Request-ID'),
+}
+logger.info(json.dumps(log_record))
+```
+
+Log **input features, model output, timestamp, and model version** at minimum. Structured JSON (one record per line) makes later drift analysis trivial: you can load a week of logs with `pandas.read_json(..., lines=True)` and compute feature distributions directly. Without this, you will have no data to detect drift against and no way to debug wrong predictions after the fact.
 
 Models degrade in production for two reasons.
 

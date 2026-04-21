@@ -109,6 +109,20 @@ print("The boundary is not a straight line. Trees handle this naturally.")
 
 A decision tree splits the data recursively. At each node, it picks the feature and threshold that best separates the classes. The result is a flowchart that you can read and understand.
 
+<Card title="What Does 'Best Separates' Mean?" icon="star">
+The tree picks splits that maximize the drop in **node impurity**: a measure of how mixed the classes are at a node. A pure node (all failures or all normals) has impurity 0. A perfectly mixed node has maximum impurity. Two measures are common:
+
+```text
+  Gini impurity (default in sklearn):
+    G = 1 - sum(p_i^2)    for each class i
+
+  Entropy:
+    H = -sum(p_i * log2(p_i))
+```
+
+Both peak when classes are balanced 50/50 and are zero when one class dominates. The tree scores every candidate `(feature, threshold)` pair and picks the one that shrinks total impurity the most. You pass `criterion='gini'` (default) or `criterion='entropy'` to `DecisionTreeClassifier`. Gini is slightly faster to compute; entropy can produce marginally more balanced trees. In practice the choice rarely changes results by more than a percent or two.
+</Card>
+
 ```text
   How a Decision Tree Works
   ──────────────────────────────────────────────
@@ -369,6 +383,12 @@ Each tree in the forest is trained on a random subset (with replacement) of the 
 
 One of the greatest advantages of tree-based models: they tell you which features matter most. Feature importance measures how much each feature contributes to reducing node impurity (gini or entropy) across all the splits in all the trees during training. This is computed on the training data, not on held-out test data, so a feature that dominates the training splits but does not generalize will still score high. Treat it as a ranking of what the model used, not a guarantee of real-world predictive power.
 
+<Card title="Gotcha: Correlated Features Share Importance" icon="warning">
+When two features carry similar information (say vibration RMS and vibration peak, or two thermocouples on the same housing), the forest will pick one or the other at each split almost arbitrarily. The importance ends up split between them, and a genuinely useful feature can look half as important as it really is, or even slip below a less useful but uncorrelated feature.
+
+Quick sanity check: compute `np.corrcoef(X.T)` before trusting the ranking. If two features correlate above about 0.85, their importances are not independent and should be interpreted together, not compared head-to-head. Permutation importance (`sklearn.inspection.permutation_importance`) is more robust to this, because it re-shuffles one feature at a time on held-out data.
+</Card>
+
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
@@ -547,7 +567,7 @@ print("\nPlot saved as model_comparison.png")
 <Steps>
 1. **Decision trees are flowcharts the model discovers from data.** At each node, the tree picks the feature and threshold that best separates the classes. You can read and understand the rules.
 
-2. **Deep trees overfit, shallow trees underfit.** The `max_depth` parameter controls complexity. Use cross-validation to find the right depth.
+2. **Deep trees overfit, shallow trees underfit.** The `max_depth` parameter is the easiest complexity knob, but `min_samples_split` (minimum samples required to split a node) and `min_samples_leaf` (minimum samples required in each leaf) are equally important. They stop the tree from carving out tiny regions around noise. Use cross-validation to find the right combination.
 
 3. **Random forests are ensembles of decorrelated trees.** Each tree is trained on a random subset of data and features. The ensemble vote is more reliable than any single tree.
 

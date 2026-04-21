@@ -596,6 +596,30 @@ print("  Mini-batch: moderate noise, good balance.")
 print("\nPlot saved as gd_modes_comparison.png")
 ```
 
+## Beyond Vanilla Gradient Descent
+
+<InArticleAd />
+
+
+The update rule `w -= lr * gradient` is what practitioners call **vanilla SGD**. Modern frameworks ship with several variants that improve on it in two ways: they add **momentum** so updates accumulate direction rather than rethinking at each step, and they **adapt the learning rate** per parameter so sensitive weights take smaller steps than robust ones.
+
+```text
+  Vanilla:         w -= lr * g
+  Momentum:        v = beta*v + g;   w -= lr * v
+  Adam (default):  tracks running mean AND variance of g,
+                   adjusts step size for every parameter
+```
+
+You will see `torch.optim.Adam` in PyTorch and `tf.keras.optimizers.Adam` in TensorFlow as the default choice. It usually converges faster than vanilla SGD and is far more forgiving about the learning rate. Knowing that every variant still computes the same gradient and still steps downhill makes the landscape less mysterious.
+
+Another practical tool is a **learning rate schedule**: start with a larger step and decay it as training progresses. `ReduceLROnPlateau`, cosine annealing, and step decay are common names.
+
+<Card title="Why Linear Regression Always Wins But Neural Networks Don't" icon="star">
+The loss surface for linear regression (and logistic regression) is **convex**: a single bowl-shaped minimum, no side valleys. Gradient descent is guaranteed to reach it from any starting point, given enough iterations and a small enough learning rate.
+
+Neural networks are **non-convex**: their loss surfaces have many local minima and saddle points. You are not guaranteed to find the global minimum. In practice, overparameterized networks have many minima that all generalize well, so this is less catastrophic than it sounds, but it is why training neural networks feels like an art and training linear models feels like math.
+</Card>
+
 ## The Complete Gradient Descent Lab
 
 <InArticleAd />
