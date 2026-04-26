@@ -233,7 +233,6 @@ A single train/test split can give misleading results. Cross-validation runs k d
 Picking the wrong splitter is one of the most common hidden bugs in ML pipelines: the reported CV score looks good, and the model fails on real data.
 </Card>
 
-
 ```python
 import numpy as np
 import pandas as pd
@@ -359,13 +358,12 @@ Gradient Boosting wins because it can model nonlinear relationships (like the HV
 
 ## Hyperparameter Tuning with GridSearchCV
 
+<InArticleAd />
+
+
 <Card title="GridSearch vs RandomizedSearch" icon="information">
 `GridSearchCV` fits every combination of every hyperparameter value: 3 x 3 x 3 options with 5-fold CV means 135 model fits. That explodes quickly. When the search space grows past a few hundred combinations, use `RandomizedSearchCV` instead. It samples a fixed number of random combinations from the same grid (or from a parameter distribution). In practice, random search finds nearly optimal hyperparameters in a small fraction of the compute, because a few parameters usually dominate the score. Same API, just swap the class name and pass `n_iter=50`.
 </Card>
-
-
-<InArticleAd />
-
 
 ```python
 import numpy as np

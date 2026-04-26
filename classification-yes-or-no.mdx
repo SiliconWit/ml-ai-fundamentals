@@ -289,7 +289,6 @@ Logistic regression tends to produce reasonably well-calibrated probabilities: i
 If your downstream decision depends on the probability itself (for example, expected-cost analysis: `cost_of_flagging * p_defect < cost_of_shipping_bad * (1 - p_defect)`), wrap the model with `sklearn.calibration.CalibratedClassifierCV` to recalibrate. If you only use the predicted class, calibration does not matter.
 </Card>
 
-
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
