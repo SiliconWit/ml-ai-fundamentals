@@ -623,7 +623,7 @@ Of all actual failure events, the model caught about 89%. The other 11% were mis
 The tradeoff between precision and recall depends on the cost of false alarms versus the cost of missed failures. For a pump that costs thousands to replace, catching 89% of failures 24 hours early (even with some false alarms) is valuable.
 
 :::tip[Instrument it]
-This lesson is where machine learning meets the messiness of real sensors, and the messiness usually starts before the data file. Drift, dropouts, clipping, and a sensor mounted a little differently than last time all arrive as "bad data" that no amount of cleaning fully fixes. The real fix is upstream: mount the [sensor consistently and sample it cleanly](/education/sensor-actuator-interfacing-stm32/), label honestly, and record across the full range of real conditions. A model trained on data that matches the field is one you can actually [deploy and trust](/education/iot-systems/).
+This lesson is where machine learning meets the messiness of real sensors, and the messiness usually starts before the data file. Drift, dropouts, clipping, and a sensor mounted a little differently than last time all arrive as "bad data" that no amount of cleaning fully fixes. The real fix is upstream: mount the [sensor consistently and sample it cleanly](/education/sensor-actuator-interfacing-stm32/), label honestly, and record across the full range of real conditions. A model trained on data that matches the field is one you can actually [deploy](/education/iot-systems/), then trust as it [reports live](https://siliconwit.io).
 :::
 
 ## Key Takeaways
