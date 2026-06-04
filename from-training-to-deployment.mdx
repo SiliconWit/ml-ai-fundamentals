@@ -649,6 +649,10 @@ Vibration has shifted by 1.63 standard deviations from training. The model was t
 
 A practical naming convention: `equipment_health_v1.0_2025-09-15.joblib`. Include the version, the date, and optionally the training data hash. Store the corresponding `training_stats.joblib` alongside it so drift checks always use the right baseline.
 
+:::tip[Instrument it]
+A model in a notebook predicts on a CSV; a deployed model predicts on a live sensor, in real time, on a small device, and that shift is where most projects stumble. The input pipeline that fed clean training data now has to run on the [MCU reading the real sensor](/education/sensor-actuator-interfacing-stm32/) at the same sample rate and scaling, or the predictions drift. Get that parity right and the model runs at the edge and [reports only what matters](/education/iot-systems/), an event, not a raw stream.
+:::
+
 ## Deployment Summary
 
 <InArticleAd />
