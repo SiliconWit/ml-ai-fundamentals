@@ -25,11 +25,11 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/MlAiFundamentalsComments.astro';
 
-You have a trained model that scores well on test data. Now what? A model sitting in a Jupyter notebook is not useful. This lesson covers the three most common deployment paths: a Python script for batch processing, a REST API for real-time predictions, and a C array export for running on microcontrollers. You will also learn when and why models degrade in production, and how to detect it. #MLDeployment #ModelServing #MLOps
+A model that scores well on your computer does nothing for the plant until its answers reach someone who can act on them. And from its first day of work, the machine and the seasons go on changing while the model stays as it was trained. This lesson shows three ways to put a trained model to work: a program that runs on a schedule, a small web service, and plain C code inside a microcontroller. Then it shows how to notice that a model no longer matches its machine, and what a model must never be trusted with. #MLDeployment #ModelServing #MLOps
 
 ## The ML Lifecycle
 
-Training is one step in a continuous loop. Deployment, monitoring, and retraining complete the cycle.
+To **deploy** a model is to put it where it receives new readings and its answers are used. Training is one step of a loop:
 
 ```mermaid
 flowchart TD
@@ -43,14 +43,20 @@ flowchart TD
     F -- No --> E
 ```
 
-Most teams spend 20% of time on training and 80% on everything else.
+A deployed model is fixed. It knows the machine as it was in the training readings. **Drift** is what happens next: the readings or the machine change, and the model's examples no longer describe it. So a model in use needs a regular check against fresh readings.
+
+### Advice from the model, limits in the device
+
+The answer of a model is an estimate, and it is sometimes wrong. Use it as advice for a person or for a slow decision: inspect this pump this week, order a bearing.
+
+Do not put a model in the path that protects people or equipment. The limit that stops a motor at once on high temperature or high current stays a plain fixed rule in the controller. A fixed rule can be read and tested, and it does not depend on a network or on training readings.
 
 ## Step 1: Train and Save the Model
 
 <InArticleAd />
 
 
-First, train a model and save it with joblib. This model will be deployed in all three ways below.
+The model sorts each reading of four sensors into three classes: healthy, degraded or critical. The program saves it with `joblib`, a library that writes a Python object to a file. It also saves the mean and the standard deviation of each sensor in the training set, to compare with new readings later.
 
 ```python
 import numpy as np
@@ -65,7 +71,7 @@ from sklearn.metrics import classification_report
 np.random.seed(42)
 
 # Generate sensor data for equipment health classification
-n_samples = 2000
+n_samples = 20000
 vibration = np.random.normal(2.0, 0.5, n_samples)
 temperature = np.random.normal(50, 8, n_samples)
 pressure = np.random.normal(5.0, 0.8, n_samples)
@@ -74,7 +80,7 @@ current_draw = np.random.normal(3.5, 0.6, n_samples)
 # Labels: 0=healthy, 1=degraded, 2=critical
 labels = np.zeros(n_samples, dtype=int)
 
-# Degraded: elevated vibration or temperature
+# Degraded: elevated vibration AND elevated temperature
 degraded_mask = (vibration > 2.5) & (temperature > 55)
 labels[degraded_mask] = 1
 
@@ -132,31 +138,33 @@ for i, name in enumerate(feature_names):
 Model Performance on Test Set:
               precision    recall  f1-score   support
 
-     Healthy       0.97      0.99      0.98       308
-    Degraded       0.92      0.85      0.88        72
-    Critical       0.95      0.90      0.92        20
+     Healthy       1.00      1.00      1.00      3818
+    Degraded       1.00      1.00      1.00       178
+    Critical       1.00      1.00      1.00         4
 
-    accuracy                           0.96       400
-   macro avg       0.95      0.91      0.93       400
-weighted avg       0.96      0.96      0.96       400
+    accuracy                           1.00      4000
+   macro avg       1.00      1.00      1.00      4000
+weighted avg       1.00      1.00      1.00      4000
 
 Saved: equipment_health_model.joblib
 Saved: feature_names.joblib
 Saved: training_stats.joblib
 
 Training data statistics:
-  vibration_g: mean=1.991, std=0.498
-  temperature_c: mean=50.123, std=8.012
-  pressure_bar: mean=5.012, std=0.803
-  current_a: mean=3.487, std=0.598
+  vibration_g: mean=2.003, std=0.500
+  temperature_c: mean=49.891, std=8.016
+  pressure_bar: mean=5.001, std=0.806
+  current_a: mean=3.498, std=0.598
 ```
+
+The scores are perfect because the labels in this practice data come from exact threshold rules with no noise. Real equipment never behaves like this. Notice also how rare the critical class is: 4 of the 4,000 test readings. A report on 4 readings says very little.
 
 ## Option 1: Batch Inference Script
 
 <InArticleAd />
 
 
-The simplest deployment. Load the model, read sensor data from a CSV or database, and write predictions.
+Using a trained model on new readings is called **inference**. The simplest way is in batches: on a schedule, a program loads the model, reads the new readings, and writes one answer for each.
 
 ```python
 import numpy as np
@@ -203,24 +211,28 @@ Batch Inference Results
 =================================================================
  Vibration   Temp  Press  Current | Prediction Confidence
 -----------------------------------------------------------------
-       1.8   48.0    5.2      3.4 |    Healthy      98.7%
-       2.7   56.5    4.8      3.9 |   Degraded      87.3%
-       3.2   60.1    4.2      4.5 |   Critical      91.5%
-       2.1   52.0    5.1      3.3 |    Healthy      97.2%
-       2.9   57.8    4.3      4.1 |   Degraded      72.1%
+       1.8   48.0    5.2      3.4 |    Healthy    100.0%
+       2.7   56.5    4.8      3.9 |   Degraded    100.0%
+       3.2   60.1    4.2      4.5 |   Critical    100.0%
+       2.1   52.0    5.1      3.3 |    Healthy    100.0%
+       2.9   57.8    4.3      4.1 |   Degraded    100.0%
 ```
 
-This is appropriate when predictions are needed periodically (hourly, daily) rather than in real time.
+A batch program is enough when answers are needed every hour or every day, as for planning maintenance.
+
+"Confidence" is the model's own estimate of how sure it is. On a reading unlike anything in the training set, a model can be confident and wrong.
 
 ## Option 2: Flask REST API
 
 <InArticleAd />
 
 
-For real-time predictions, wrap the model in an HTTP endpoint. Any device that can send an HTTP request (an ESP32, a Raspberry Pi, a web dashboard) can get predictions.
+To answer one reading at a time, make the model a small web service. It waits for requests over HTTP, the protocol of web pages. A device sends its reading as JSON, a text format of names and values, and receives the answer in the same format. Such a service is called a REST API, and Flask is a Python library for writing one. A microcontroller with WiFi, a small computer at the machine or a web page can use it.
 
-<Card title="In Production: Validate the Request Payload" icon="warning">
-The simple `required` / `missing` check below is fine for a demo. For anything going to production, use a schema validator so malformed JSON returns a clean 400 instead of crashing inside `np.array()`. The standard choice is **Pydantic**:
+The answer travels over a network, which can be slow or down: one more reason to keep the protecting limit in the device.
+
+<Card title="In real use: check what the request contains" icon="warning">
+The simple `required` / `missing` check below is enough for a demonstration. In real use, check every field with a validation library, so that a bad request gets a clear error (HTTP status 400) and does not stop the service. A common choice is **Pydantic**:
 
 ```python
 from pydantic import BaseModel, Field, ValidationError
@@ -241,7 +253,7 @@ def predict():
     ...
 ```
 
-Pydantic (or `flask-pydantic`, `FastAPI`, `pyiceberg`, and similar) catches missing fields, wrong types, and out-of-range values in one line per field. This prevents the 3 AM page where the API crashes because an ESP32 firmware bug started sending pressure as a string.
+Pydantic (or `flask-pydantic`, `FastAPI`, `marshmallow`) finds missing fields, wrong types and values out of range with one line for each field.
 </Card>
 
 ```python
@@ -345,12 +357,12 @@ for reading in test_readings:
 
 ```text
 Input: vib=1.8, temp=48.0, press=5.2
-  Status: healthy (confidence: 98.7%)
-  Probabilities: {'healthy': 0.987, 'degraded': 0.011, 'critical': 0.002}
+  Status: healthy (confidence: 100.0%)
+  Probabilities: {'critical': 0.0, 'degraded': 0.0, 'healthy': 1.0}
 
 Input: vib=3.2, temp=60.1, press=4.2
-  Status: critical (confidence: 91.5%)
-  Probabilities: {'healthy': 0.023, 'degraded': 0.062, 'critical': 0.915}
+  Status: critical (confidence: 100.0%)
+  Probabilities: {'critical': 1.0, 'degraded': 0.0, 'healthy': 0.0}
 ```
 
 You can also test with curl:
@@ -366,7 +378,7 @@ curl -X POST http://localhost:5000/predict \
 <InArticleAd />
 
 
-For microcontrollers with no Python runtime, you can convert a simple model into hardcoded C arrays. This works well for decision trees and small neural networks.
+A microcontroller (MCU) is the small computer on a chip inside a device. It cannot run Python. But a decision tree is only a list of comparisons, so it can be written out as C code: arrays of numbers for the scaling, and nested `if` and `else` lines for the questions. The device then answers by itself, with no network. The program trains a small tree on the same data and writes that C file.
 
 ```python
 import numpy as np
@@ -381,7 +393,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
 # Regenerate training data
-n_samples = 2000
+n_samples = 20000
 vibration = np.random.normal(2.0, 0.5, n_samples)
 temperature = np.random.normal(50, 8, n_samples)
 pressure = np.random.normal(5.0, 0.8, n_samples)
@@ -486,17 +498,19 @@ print("No Python, no ML library needed. Just basic float arithmetic.")
 ```text
 Generated: equipment_model.h
 Tree depth: 6
-Tree leaves: 18
-File size: 2847 bytes
+Tree leaves: 9
+File size: 1760 bytes
 
 This header can be included directly in Arduino/ESP-IDF/STM32 firmware.
 No Python, no ML library needed. Just basic float arithmetic.
 ```
 
-The generated header contains the scaler parameters (mean and scale for each feature), a `scale_features()` function, and the decision tree as nested if/else statements. Your MCU firmware calls `scale_features()` on raw sensor readings, then calls `predict()` to get the class index.
+The firmware calls `scale_features()` on the raw readings and then `predict()`, which returns the number of the class.
 
-<Card title="Connecting to Edge AI" icon="star">
-This C export approach works for simple models (decision trees, small neural networks). For more complex models like convolutional neural networks or LSTMs, use TensorFlow Lite for Microcontrollers, which provides a full inference runtime on MCUs. See the [Edge AI / TinyML course](/education/edge-ai-tinyml/) for deploying quantized TensorFlow models on ESP32 and STM32.
+Inside the device the tree is still advice. Write the protecting limit as its own few lines of firmware, which do not pass through `predict()`.
+
+<Card title="Larger models on a microcontroller" icon="star">
+For neural networks, use TensorFlow Lite for Microcontrollers, a library that runs a stored model on the chip. See the [Edge AI / TinyML course](/education/edge-ai-tinyml/).
 </Card>
 
 ## Model Monitoring: Detecting Drift
@@ -504,7 +518,12 @@ This C export approach works for simple models (decision trees, small neural net
 <InArticleAd />
 
 
-Drift detection is only possible if you have been logging. Before you can detect anything, every prediction request should be written to disk (or a database, or a log aggregator) with enough context to reconstruct what happened later.
+A model that was right last year can be wrong this year, although nobody changed it. There are two ways this happens:
+
+- **Data drift: the readings change.** A new motor, a hotter season or an ageing sensor moves the inputs. In the training set the mean vibration is 2.0 g, and about 16% of the readings are above 2.5 g. If a rougher motor moves the mean to 2.8 g, about 73% are. A question learned on the old motor, "is the vibration high?", now answers yes for most healthy readings.
+- **Concept drift: the meaning changes.** The readings look the same, but high vibration, which meant a failing bearing, is now the normal state.
+
+You can check only what you recorded. So every request for a prediction is written to a file or a database:
 
 ```python
 # Inside your /predict handler, after returning the response:
@@ -519,25 +538,9 @@ log_record = {
 logger.info(json.dumps(log_record))
 ```
 
-Log **input features, model output, timestamp, and model version** at minimum. Structured JSON (one record per line) makes later drift analysis trivial: you can load a week of logs with `pandas.read_json(..., lines=True)` and compute feature distributions directly. Without this, you will have no data to detect drift against and no way to debug wrong predictions after the fact.
+Record at least the inputs, the answer, the time and the version of the model.
 
-Models degrade in production for two reasons.
-
-```text
-  Types of Model Drift
-  ──────────────────────────────────────────
-  Data Drift:
-  The input distribution changes.
-  Training: vibration mean = 2.0g
-  Production (6 months later): vibration mean = 2.8g
-  Cause: new equipment, seasonal change, sensor aging
-
-  Concept Drift:
-  The relationship between inputs and outputs changes.
-  Training: high vibration = bearing failure
-  Production: high vibration = new motor type (normal)
-  Cause: process changes, equipment upgrades
-```
+The check below is for data drift. For each sensor it takes the mean of the new readings, subtracts the training mean, and divides by the training standard deviation. Above a threshold (1.5 here), the sensor is reported.
 
 ```python
 import numpy as np
@@ -619,16 +622,18 @@ Data Drift Report
 =================================================================
              Feature   Train Mean     New Mean   Shift (stds)   Drift?
 -----------------------------------------------------------------
-        vibration_g        1.991        2.803           1.63      YES
-      temperature_c       50.123       49.987           0.02       no
-       pressure_bar        5.012        4.498           0.64       no
-          current_a        3.487        3.512           0.04       no
+         vibration_g        2.003        2.803           1.60      YES
+       temperature_c       49.891       50.255           0.05       no
+        pressure_bar        5.001        4.587           0.51       no
+           current_a        3.498        3.520           0.04       no
 
 WARNING: Data drift detected. Model predictions may be unreliable.
 Action: collect new labeled data and retrain the model.
 ```
 
-Vibration has shifted by 1.63 standard deviations from training. The model was trained on data with lower vibration levels, so its predictions on this new data may be inaccurate. This is your signal to collect new labeled data and retrain.
+The mean vibration has moved by (2.803 - 2.003) / 0.500 = 1.60 standard deviations. Pressure has moved by about 0.5, below the threshold. The model was trained on lower vibration, so its answers on these readings may be wrong. Collect new labelled readings and train again.
+
+This check sees only the inputs. It cannot see concept drift. For that, compare the answers of the model with what the technicians found: every inspection report is a fresh labelled example. Each month, count the missed faults and the false alarms.
 
 ## The Retraining Decision
 
@@ -637,20 +642,22 @@ Vibration has shifted by 1.63 standard deviations from training. The model was t
 
 <Steps>
 
-1. **Monitor continuously**: run the drift check on every batch of incoming data. Log the results.
+1. **Check on a schedule**: run the drift check on every batch of new readings.
 
-2. **Set thresholds**: a shift of 1.5 to 2.0 standard deviations is a reasonable starting point. Adjust based on how sensitive your application is.
+2. **Check against what happened**: a rising count of false alarms or missed faults is a reason to retrain, even when no input has moved.
 
-3. **Version your models**: save each retrained model with a timestamp and the training data statistics. This lets you roll back if a new model performs worse.
+3. **Set a threshold**: a move of 1.5 to 2.0 standard deviations is a reasonable start.
 
-4. **Automate when ready**: once you have a reliable pipeline, trigger retraining automatically when drift exceeds the threshold. But start with manual retraining and human review.
+4. **Give every model a version**: save each model with its date and its training statistics, so you can return to the last one.
+
+5. **Automate last**: begin by retraining by hand, with a person reading the results.
 
 </Steps>
 
-A practical naming convention: `equipment_health_v1.0_2025-09-15.joblib`. Include the version, the date, and optionally the training data hash. Store the corresponding `training_stats.joblib` alongside it so drift checks always use the right baseline.
+A practical file name is `equipment_health_v1.0_2025-09-15.joblib`.
 
 :::tip[Instrument it]
-A model in a notebook predicts on a CSV; a deployed model predicts on a live sensor, in real time, on a small device, and that shift is where most projects stumble. The input pipeline that fed clean training data now has to run on the [MCU reading the real sensor](/education/sensor-actuator-interfacing-stm32/) at the same sample rate and scaling, or the predictions drift. Get that parity right and the model runs at the edge and [reports only what matters](/education/iot-systems/), an event [siliconwit.io](https://siliconwit.io) can alert on, not a raw stream.
+In training, the model saw readings from a file. In use it sees a live sensor. The firmware on the [MCU that reads the sensor](/education/sensor-actuator-interfacing-stm32/) must sample at the same rate and apply the same scaling as the training data. Then the device can run the model itself and [report only the events that matter](/education/iot-systems/), which [siliconwit.io](https://siliconwit.io) can turn into an alert for a person.
 :::
 
 ## Deployment Summary
@@ -658,11 +665,13 @@ A model in a notebook predicts on a CSV; a deployed model predicts on a live sen
 <InArticleAd />
 
 
-| Deployment Method | Best For | Latency | Dependencies |
+| Way to deploy | Best for | Time to an answer | Needs |
 |---|---|---|---|
-| Python batch script | Periodic predictions (hourly/daily) | Seconds | Python, joblib |
-| Flask REST API | Real-time predictions from any HTTP client | ~10ms per request | Python, Flask |
-| C array export | MCU firmware, no network required | ~1ms inference | None (bare metal) |
+| Python batch script | Answers every hour or every day | Seconds | Python, joblib |
+| Flask REST API | One reading at a time, from any device on the network | Milliseconds, plus the network | Python, Flask, a server |
+| C code in the device | Firmware of an MCU, with no network | Under a millisecond | Nothing more |
+
+In all three, the answer is advice. The protecting limit is a fixed rule in the device.
 
 ## Where to Go Next
 
@@ -671,14 +680,14 @@ A model in a notebook predicts on a CSV; a deployed model predicts on a live sen
 
 <CardGrid>
 <Card title="Edge AI / TinyML" icon="rocket">
-Deploy quantized neural networks on ESP32 and STM32 using TensorFlow Lite for Microcontrollers. The [Edge AI / TinyML course](/education/edge-ai-tinyml/tinyml-machine-learning-microcontrollers/) covers the full pipeline from training to on-device inference.
+Run small neural networks on ESP32 and STM32 boards with TensorFlow Lite for Microcontrollers. The [Edge AI / TinyML course](/education/edge-ai-tinyml/tinyml-machine-learning-microcontrollers/) goes from training to inference on the device.
 </Card>
 <Card title="IoT Systems" icon="laptop">
-Connect your deployed models to cloud dashboards, MQTT brokers, and alerting systems. The [IoT Systems course](/education/iot-systems/) covers cloud integration, data pipelines, and remote model updates.
+Send the answers of a deployed model to a remote display and to alerts. The [IoT Systems course](/education/iot-systems/) covers the connection, the flow of data and remote updates of a model.
 </Card>
 </CardGrid>
 
-The model you trained in this course is the starting point. The real work begins when it meets production data, when sensors drift, when equipment changes, and when you need to retrain without downtime. That is the engineering challenge, and it is where ML becomes genuinely useful.
+Sensors drift, equipment is replaced and seasons change. A model in use is checked against fresh readings, and trained again when it no longer matches the machine.
 
 <MlAiFundamentalsComments />
 

@@ -25,11 +25,11 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/MlAiFundamentalsComments.astro';
 
-Every ML project follows the same workflow: load data, explore, preprocess, train, evaluate, tune, deploy. Scikit-Learn provides a clean API that standardizes each step. In this lesson you will build a complete, reusable pipeline and compare five algorithms on the same dataset, giving you a template you can apply to any regression or classification problem. #ScikitLearn #MLPipeline #CrossValidation
+You try a model, the score looks good, and on next month's readings it is far worse. Often the model is not at fault: information about the test rows reached it, or one lucky division of the data flattered it. Scikit-learn, a free Python library for machine learning (ML), gives every model the same few commands, so one careful way of working serves every project. Here you build it for the energy use of a building: five models compared fairly, the best one tuned, tested once on rows it has never seen, and saved. #ScikitLearn #MLPipeline #CrossValidation
 
 ## The ML Workflow
 
-Every project follows these steps, regardless of the problem domain.
+A model is a rule with adjustable numbers, changed in training until its answers match a table of examples. Every project does this in the same order:
 
 ```mermaid
 flowchart TD
@@ -45,8 +45,18 @@ flowchart TD
     I --> J[9. Save and Deploy\njoblib]
 ```
 
-<Card title="Why Pipelines?" icon="star">
-Without pipelines, preprocessing and model training are separate steps. This creates a subtle bug: if you fit the scaler on the full dataset before splitting, information from the test set leaks into training. Scikit-Learn Pipelines chain preprocessing and modeling into a single object, ensuring that scaling is fit only on training data during each cross-validation fold.
+Three words are needed before the first program:
+
+- **R-squared (R2)** is the score used here: the share of the variation in the measured values that the model explains. 1 is perfect. 0 is no better than answering the average every time.
+- A **hyperparameter** is a setting you choose before training, such as the depth of a tree.
+- **Scaling** changes each input so that its mean is 0 and its standard deviation is 1. Then an input with large numbers (light in lux) cannot outweigh one with small numbers (wind in m/s).
+
+### Why the data is divided (step 4)
+
+A flexible model can match its examples by remembering them. On the data of this lesson, a decision tree with no depth limit scores R2 = 1.00 on the 800 rows it was fitted to, and 0.58 on 200 rows it has never seen. So the model is fitted to a **training set**, and a **test set** is kept away from every step and used once, at the end, to estimate how the model will do on new readings.
+
+<Card title="Why pipelines?" icon="star">
+A scaler learns a mean and a standard deviation from the rows you give it. If it learns them from all the rows before the division, it has used the test rows. This is **data leakage**, and it makes scores look better than they are. A `Pipeline` joins the scaler and the model in one object, so the scaler is fitted on the training rows only.
 </Card>
 
 ## Generate a Realistic Dataset
@@ -54,7 +64,7 @@ Without pipelines, preprocessing and model training are separate steps. This cre
 <InArticleAd />
 
 
-We will predict power consumption in a building from sensor readings. This simulates the kind of tabular regression problem you encounter in building automation, industrial IoT, and energy management.
+The practice task is to predict the energy a building uses (`power_kwh`, the **target**) from eight readings, such as the number of people and the outdoor temperature. Predicting a number, not a class, is called **regression**. The program makes 1,000 rows from a known formula.
 
 ```python
 import numpy as np
@@ -108,35 +118,42 @@ correlations = data.corr()['power_kwh'].drop('power_kwh').sort_values(ascending=
 print(correlations.round(3).to_string())
 ```
 
-**Expected output (first few rows will vary, statistics approximate):**
+**Expected output (shortened):**
 
 ```text
 Dataset shape: (1000, 9)
 
 First 5 rows:
    hour  day_of_week  temperature_c  humidity_pct  occupancy  ...
-0    14            4           26.0          52.3         33  ...
+0     6            6           10.4          72.8         28  ...
 
 Summary statistics:
-       hour  day_of_week  temperature_c  ...    power_kwh
-count  1000         1000           1000  ...       1000.0
-mean   11.6          3.0           22.1  ...        163.5
-std     6.9          2.0            7.9  ...         42.8
+          hour  day_of_week  temperature_c  ...  power_kwh
+count  1000.00      1000.00        1000.00  ...    1000.00
+mean     11.43         2.98          22.18  ...     188.28
+std       7.15         2.00           7.97  ...      29.60
 ...
 
 Correlation with power_kwh:
-occupancy          0.481
-humidity_pct       0.182
-temperature_c      0.086
-...
+occupancy          0.474
+humidity_pct       0.262
+light_level_lux    0.056
+hvac_setpoint_c    0.053
+temperature_c      0.022
+wind_speed_ms      0.014
+hour              -0.262
+day_of_week       -0.339
 ```
 
-Occupancy has the strongest correlation with power consumption, which matches our synthetic formula. But correlations only capture linear relationships. The HVAC effort term (absolute difference between temperature and setpoint) is nonlinear and will not show up well in simple correlation.
+A correlation is a number from -1 to 1 that says how closely two columns move together along a straight line. Occupancy has the strongest correlation with power, which matches the formula.
+
+A correlation sees only straight-line relations. The heating and cooling (HVAC) term grows when the temperature is far from the setpoint in either direction. So temperature has a correlation of only 0.022 with power, although it drives one of the largest terms.
 
 ## Data Preprocessing with Pipelines
 
 <InArticleAd />
 
+The next program divides the rows into 800 for training and 200 for testing. Its pipeline has two steps: a scaler, and `PolynomialFeatures`, which adds the squares of the inputs and the products of every pair, so that a straight-line model can follow a curve.
 
 ```python
 import numpy as np
@@ -213,25 +230,42 @@ Original features: 8
 After polynomial expansion: 44
 ```
 
-The pipeline ensures that `StandardScaler` is fit on training data only. When we call `transform` on the test set, it uses the training mean and standard deviation. Polynomial features create interaction terms (temperature * humidity, hour * occupancy, etc.) that can capture nonlinear relationships.
+`fit_transform` on the training rows learns the mean and the standard deviation and applies them. `transform` on the test rows only applies what was learned.
 
-`PolynomialFeatures` expands the feature count fast: 8 original features become 44 at `degree=2` and would balloon to 165 at `degree=3`. More features mean more parameters and more overfitting risk, which is exactly why regularized models like Ridge and Lasso (below) pair well with polynomial expansion.
+`PolynomialFeatures` adds columns fast: 8 inputs become 44 at `degree=2` and 164 at `degree=3`. More columns give the model more room to remember its examples. Ridge and Lasso, used below, are linear models with a penalty that limits this.
 
 ## Cross-Validation and Model Comparison
 
 <InArticleAd />
 
 
-A single train/test split can give misleading results. Cross-validation runs k different splits and averages the scores, giving a more reliable estimate.
+One division into training rows and test rows can be lucky or unlucky. **Cross-validation** cuts the rows into 5 equal parts, called folds. The model is trained 5 times, each time on 4 folds, and scored on the fold left out. The 5 scores are averaged.
 
-<Card title="Pick the Right Splitter for Your Data" icon="star">
-`cross_val_score(..., cv=5)` uses a plain k-fold by default for regression. That is fine here because the samples are independent. Two common cases need different splitters:
+```text
+  ┌──────┬──────┬──────┬──────┬──────┐
+  │Fold 1│Fold 2│Fold 3│Fold 4│Fold 5│
+  └──────┴──────┴──────┴──────┴──────┘
 
-- **Imbalanced classification.** Plain k-fold can accidentally put most of the rare class into one fold. Use `StratifiedKFold(n_splits=5)` (scikit-learn does this automatically when `cv=5` is passed to a classifier, but not when you wrap in a custom splitter). It preserves the class ratio in every fold.
-- **Time-series data.** Random folds let the model see the future during training, which is cheating. Use `TimeSeriesSplit(n_splits=5)`, which always trains on the past and validates on the future. This matters the moment you touch sensor data with a timestamp, covered in the Working with Real Sensor Data lesson.
+  Run 1:  TEST   Train  Train  Train  Train  -> score1
+  Run 2:  Train  TEST   Train  Train  Train  -> score2
+  Run 3:  Train  Train  TEST   Train  Train  -> score3
+  Run 4:  Train  Train  Train  TEST   Train  -> score4
+  Run 5:  Train  Train  Train  Train  TEST   -> score5
 
-Picking the wrong splitter is one of the most common hidden bugs in ML pipelines: the reported CV score looks good, and the model fails on real data.
+  Final score = mean of the 5 scores.
+  Every row is scored once, by a model that did not see it.
+```
+
+<Card title="Choose the division that fits your data" icon="star">
+Plain folds are right here, because the rows do not depend on each other. Two cases need another division:
+
+- **Rare classes.** `StratifiedKFold(n_splits=5)` keeps the same share of each class in every fold. Scikit-learn uses it by itself when you pass `cv=5` with a classifier.
+- **Readings in time order.** `TimeSeriesSplit(n_splits=5)` always trains on the past and scores on what follows. [Working with Real Sensor Data](/education/ml-ai-fundamentals/working-with-real-sensor-data/) uses this rule.
+
+With the wrong division the score looks good and the model fails in use.
 </Card>
+
+The program runs five models through the same folds. Random Forest and Gradient Boosting are built from many decision trees.
 
 ```python
 import numpy as np
@@ -327,42 +361,28 @@ print("\nBest model:", max(results, key=lambda k: results[k].mean()))
 ```text
 5-Fold Cross-Validation Results (R-squared)
 =======================================================
-Linear Regression         | Mean R2: 0.8431 (+/- 0.0112)
-Ridge (alpha=1.0)         | Mean R2: 0.8432 (+/- 0.0111)
-Lasso (alpha=1.0)         | Mean R2: 0.8387 (+/- 0.0118)
-Random Forest             | Mean R2: 0.9204 (+/- 0.0087)
-Gradient Boosting         | Mean R2: 0.9312 (+/- 0.0065)
+Linear Regression         | Mean R2: 0.4660 (+/- 0.0376)
+Ridge (alpha=1.0)         | Mean R2: 0.4660 (+/- 0.0375)
+Lasso (alpha=1.0)         | Mean R2: 0.4670 (+/- 0.0293)
+Random Forest             | Mean R2: 0.7434 (+/- 0.0290)
+Gradient Boosting         | Mean R2: 0.7851 (+/- 0.0260)
 
 Best model: Gradient Boosting
 ```
 
-```text
-  Cross-Validation (5-fold)
-  ──────────────────────────────────────────
-  Full Dataset
-  ┌──────┬──────┬──────┬──────┬──────┐
-  │Fold 1│Fold 2│Fold 3│Fold 4│Fold 5│
-  └──────┴──────┴──────┴──────┴──────┘
+Gradient Boosting gives the best score, because models built from trees can follow relations that are not straight lines, such as the HVAC term. The three linear models reach an R2 of about 0.47. The models built from trees reach 0.74 to 0.79.
 
-  Iteration 1:  TEST  Train  Train  Train  Train  -> score1
-  Iteration 2:  Train  TEST  Train  Train  Train  -> score2
-  Iteration 3:  Train  Train  TEST  Train  Train  -> score3
-  Iteration 4:  Train  Train  Train  TEST  Train  -> score4
-  Iteration 5:  Train  Train  Train  Train  TEST  -> score5
-
-  Final score = mean(score1..score5)
-  Each sample appears in the test set exactly once.
-```
-
-Gradient Boosting wins because it can model nonlinear relationships (like the HVAC effort term) that linear models miss.
+To stay short, this comparison used all 1,000 rows. In a real project, set the test rows aside first, as the tuning program below does.
 
 ## Hyperparameter Tuning with GridSearchCV
 
 <InArticleAd />
 
 
-<Card title="GridSearch vs RandomizedSearch" icon="information">
-`GridSearchCV` fits every combination of every hyperparameter value: 3 x 3 x 3 options with 5-fold CV means 135 model fits. That explodes quickly. When the search space grows past a few hundred combinations, use `RandomizedSearchCV` instead. It samples a fixed number of random combinations from the same grid (or from a parameter distribution). In practice, random search finds nearly optimal hyperparameters in a small fraction of the compute, because a few parameters usually dominate the score. Same API, just swap the class name and pass `n_iter=50`.
+**Tuning** searches for better hyperparameters. `GridSearchCV` takes a list of values for each one, tries every combination, and scores each by cross-validation inside the training set. The test set takes no part. If you chose the settings by their test score, no unseen rows would be left to judge the model.
+
+<Card title="Grid search or randomized search" icon="information">
+`GridSearchCV` fits every combination: 3 x 3 x 3 values with 5 folds is 135 fits, and each added hyperparameter multiplies the count. Past a few hundred combinations, use `RandomizedSearchCV`. It tries a fixed number of random combinations (`n_iter=50`) and usually finds settings almost as good in far less time.
 </Card>
 
 ```python
@@ -456,24 +476,29 @@ print(top5.to_string(index=False))
 ```text
 Running GridSearchCV (27 combinations x 5 folds = 135 fits)...
 
-Best parameters: {'model__learning_rate': 0.1, 'model__max_depth': 5, 'model__n_estimators': 200}
-Best CV R2 score: 0.9345
-Test R2 score:    0.9401
+Best parameters: {'model__learning_rate': 0.2, 'model__max_depth': 3, 'model__n_estimators': 100}
+Best CV R2 score: 0.8150
+Test R2 score:    0.8199
 
 Top 5 parameter combinations:
- param_model__n_estimators param_model__max_depth  ...  mean_test_score  std_test_score
-                       200                      5  ...           0.9345          0.0058
-                       100                      5  ...           0.9312          0.0065
-                       200                      7  ...           0.9298          0.0071
-                       ...
+ param_model__n_estimators param_model__max_depth param_model__learning_rate  mean_test_score  std_test_score
+                       100                      3                        0.2         0.815021        0.030316
+                       200                      3                        0.1         0.813106        0.027349
+                       200                      3                        0.2         0.810836        0.031927
+                        50                      3                        0.2         0.804747        0.024949
+                       200                      3                       0.05         0.804042        0.020875
 ```
+
+Tuning raised the cross-validated R2 from 0.785 (depth 5, set by hand) to 0.815, and the best five combinations all use the shallowest trees (depth 3). The data contain noise with a standard deviation of 10 kWh, so no model can reach an R2 much above 0.88 on this data.
+
+Now the test set is used, once: 0.820, close to the cross-validation score of 0.815. A test score far below it would mean that something leaked.
 
 ## Model Persistence
 
 <InArticleAd />
 
 
-Save the trained model and load it later for inference. This is how you go from training to deployment.
+A trained model is saved to a file and loaded later to make predictions. The pipeline below uses the best settings from the grid search and is fitted on all 1,000 rows, because the testing is finished.
 
 ```python
 import numpy as np
@@ -523,7 +548,7 @@ y = data['power_kwh']
 pipe = Pipeline([
     ('scaler', StandardScaler()),
     ('model', GradientBoostingRegressor(
-        n_estimators=200, max_depth=5, learning_rate=0.1, random_state=42
+        n_estimators=100, max_depth=3, learning_rate=0.2, random_state=42
     )),
 ])
 pipe.fit(X, y)
@@ -557,39 +582,40 @@ print("(Wednesday afternoon, 45 occupants, 28.5C with 22C setpoint)")
 ```text
 Model saved to power_model.joblib
 
-Predicted power consumption: 193.4 kWh
+Predicted power consumption: 221.3 kWh
 (Wednesday afternoon, 45 occupants, 28.5C with 22C setpoint)
 ```
 
-The saved `.joblib` file contains both the scaler and the model. When you load it, preprocessing and prediction happen in one `predict()` call. No separate scaling step, no chance of using the wrong scaler.
+You can check this against the formula that generated the data: $50 + 2.5(45) + 3.0(6.5) + 0.5(55) + 0.02(500) + 15\sin(2\pi \cdot 14/24) + 20 = 232.0$ kWh before noise. The model is about 11 kWh below that, which is close to one standard deviation of the noise.
+
+The `.joblib` file holds the scaler and the model together, so the wrong scaler cannot be used.
+
+A saved model knows only the conditions in its training rows. After new equipment, or in a season the rows did not cover, check its predictions against fresh meter readings.
 
 ## The Reusable ML Template
 
 <InArticleAd />
 
 
-Every project you build from now on can follow this pattern.
-
 <Steps>
 
-1. **Load and explore** your data with pandas. Check shapes, types, distributions, and correlations.
+1. **Load and explore** the data with pandas: size, types, ranges, correlations.
 
-2. **Build a Pipeline** that chains preprocessing (scaling, encoding, feature engineering) with a model. This prevents data leakage.
+2. **Set a test set aside** before anything is fitted.
 
-3. **Cross-validate** with `cross_val_score` to get reliable performance estimates across multiple splits.
+3. **Build a Pipeline** that joins the preparation with the model. This prevents data leakage.
 
-4. **Compare models** by running several algorithms through the same pipeline and comparing cross-validation scores.
+4. **Cross-validate** with `cross_val_score` inside the training set.
 
-5. **Tune** the best model's hyperparameters with `GridSearchCV` (exhaustive) or `RandomizedSearchCV` (faster for large search spaces).
+5. **Compare models** on the same folds.
 
-6. **Evaluate** on a held-out test set that was never used during training or tuning.
+6. **Tune** the best model with `GridSearchCV` or `RandomizedSearchCV`.
 
-7. **Save** with `joblib.dump()` and load with `joblib.load()` for deployment.
+7. **Test once** on the rows set aside in step 2.
+
+8. **Save** with `joblib.dump()` and load with `joblib.load()`.
 
 </Steps>
-
-This workflow applies whether you are predicting power consumption, classifying sensor anomalies, or estimating remaining useful life of equipment.
-
 <MlAiFundamentalsComments />
 
 

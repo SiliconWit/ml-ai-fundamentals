@@ -27,18 +27,25 @@ import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/
 
 import PodcastEmbed from '../../../../components/PodcastEmbed.astro';
 
-Logistic regression draws a straight line through your feature space and says "above the line is class A, below is class B." That works when the boundary between classes is roughly linear. But many real problems have nonlinear boundaries, and for those you need models that can draw curves, angles, and irregular shapes. Decision trees do this naturally. A decision tree is a flowchart that the model discovers from data: "if vibration is above 4.5 mm/s AND temperature is above 80 C, predict failure." Random forests take this further by training hundreds of trees on random subsets of data and letting them vote. The result is one of the most reliable and interpretable model families in practical ML. #DecisionTrees #RandomForests #PredictiveMaintenance
+A bearing fails on the night shift and the line stops for a day. The vibration and temperature readings of the week before showed it coming, but nobody had written the rule that would have raised an alarm. A decision tree finds that rule from past readings. It is a short list of yes or no questions, such as "is the vibration above 3.8 mm/s?" and then "is the temperature above 66 °C?". You can read every question, so you can check the model against what you know about the machine. A random forest is many such trees that vote: steadier than one tree, and harder to read. This lesson builds both, and shows how to judge them honestly when failures are rare. #DecisionTrees #RandomForests #PredictiveMaintenance
 
 <PodcastEmbed src="https://open.spotify.com/episode/3SUrhG9T10iY6K5TnKW3Ac?si=LF2dafI4QxyE_EjlwmKRlA" />
 
 ## The Problem: Predictive Maintenance
 
-You monitor industrial equipment with three sensors: a vibration sensor (mm/s RMS), a temperature probe (Celsius), and an operating hours counter. You want to predict whether the equipment will fail within the next maintenance window. This is a binary classification problem, but the decision boundary is complex: failure depends on combinations of features, not just individual thresholds.
+A machine has three sensors: vibration (mm/s RMS, the average strength of the shaking), temperature (°C) and operating hours. Each past reading has a label: the machine failed soon after, or it did not. You want a model that reads the three numbers, its **features**, and answers "failure" or "normal". A model is a rule with adjustable numbers, changed in training until its answers match the labelled examples.
+
+No single sensor decides. A reading is dangerous when vibration and temperature are high together, so one limit on one sensor is not enough.
+
+### Training set and test set
+
+A model can score well by remembering its examples, as a student can pass by memorising last year's paper. So the readings are divided first. The model is fitted to the **training set** (420 readings here). The **test set** (180 readings) is kept away from it and used once, to see how it does on readings it has never seen. Only that score tells you what to expect tomorrow.
 
 ## Step 1: Generate the Dataset
 
 <InArticleAd />
 
+The program makes 600 practice readings from a known formula. 90 of them (15%) are failures.
 
 ```python
 import numpy as np
@@ -61,8 +68,8 @@ failure_score = (
     0.3 * (vibration - 3.0) +
     0.2 * (temperature - 70) / 10 +
     0.1 * (operating_hours - 5000) / 2000 +
-    0.4 * (vibration - 3.0) * (temperature - 70) / 100  # interaction term
-    + np.random.randn(n_samples) * 0.5
+    4.0 * (vibration - 3.0) * (temperature - 70) / 100  # interaction term
+    + np.random.randn(n_samples) * 0.3
 )
 
 # Convert to binary label with ~15% failure rate
@@ -107,48 +114,37 @@ print("The boundary is not a straight line. Trees handle this naturally.")
 <InArticleAd />
 
 
-A decision tree splits the data recursively. At each node, it picks the feature and threshold that best separates the classes. The result is a flowchart that you can read and understand.
+A decision tree starts with all the training readings in one group. One question about one feature divides the group in two, and the same is done inside each new group. A question sits at a **node**, the number in it is the **threshold**, and a group that is not divided again is a **leaf**. A leaf answers with the class that most of its readings have.
 
-<Card title="What Does 'Best Separates' Mean?" icon="star">
-The tree picks splits that maximize the drop in **node impurity**: a measure of how mixed the classes are at a node. A pure node (all failures or all normals) has impurity 0. A perfectly mixed node has maximum impurity. Two measures are common:
+The top of the tree that the program finds, simplified:
+
+```text
+          [Vibration above 3.8 mm/s?]
+             │ no               │ yes
+             ▼                  ▼
+         [Normal]    [Temperature above 66 °C?]
+                         │ no           │ yes
+                         ▼              ▼
+                     [Normal]       [Failure]
+```
+
+You do not choose the questions or the thresholds. The tree finds them in the data.
+
+<Card title="How the tree chooses a question" icon="star">
+The tree scores a question by **impurity**: how mixed the classes are inside a group. One class only gives 0. Half and half gives the highest value. Two measures are common:
 
 ```text
   Gini impurity (default in sklearn):
-    G = 1 - sum(p_i^2)    for each class i
+    G = 1 - sum(p_i^2)    p_i = share of class i in the group
 
   Entropy:
     H = -sum(p_i * log2(p_i))
 ```
 
-Both peak when classes are balanced 50/50 and are zero when one class dominates. The tree scores every candidate `(feature, threshold)` pair and picks the one that shrinks total impurity the most. You pass `criterion='gini'` (default) or `criterion='entropy'` to `DecisionTreeClassifier`. Gini is slightly faster to compute; entropy can produce marginally more balanced trees. In practice the choice rarely changes results by more than a percent or two.
+The training set has 420 readings and 63 failures: G = 1 - 0.15² - 0.85² = 0.255. The question "vibration above 3.80?" makes a group of 311 with 15 failures (G = 0.092) and a group of 109 with 48 failures (G = 0.493). Weighted by size: (311 × 0.092 + 109 × 0.493) / 420 = 0.196.
+
+No other single question lowers the impurity more, so the tree asks this one first.
 </Card>
-
-```text
-  How a Decision Tree Works
-  ──────────────────────────────────────────────
-
-  Start with ALL data at the root node.
-  At each node, ask: "Which feature and threshold
-  best separates the classes?"
-
-  Example tree:
-                [Vibration > 4.2?]
-                 /            \
-              Yes              No
-             /                  \
-    [Temp > 75?]            [Normal]
-     /        \
-   Yes        No
-   /            \
-  [Failure]  [Op Hours > 7000?]
-              /          \
-           Yes           No
-           /              \
-        [Failure]      [Normal]
-
-  The tree discovers these rules from data.
-  You do not specify the thresholds.
-```
 
 ```python
 import numpy as np
@@ -169,8 +165,8 @@ failure_score = (
     0.3 * (vibration - 3.0) +
     0.2 * (temperature - 70) / 10 +
     0.1 * (operating_hours - 5000) / 2000 +
-    0.4 * (vibration - 3.0) * (temperature - 70) / 100
-    + np.random.randn(n_samples) * 0.5
+    4.0 * (vibration - 3.0) * (temperature - 70) / 100
+    + np.random.randn(n_samples) * 0.3
 )
 threshold = np.percentile(failure_score, 85)
 labels = (failure_score > threshold).astype(int)
@@ -208,12 +204,30 @@ print("  - The proportion of samples at that node")
 print("  - The predicted class (majority class)")
 ```
 
+### Missed failures and false alarms
+
+The program prints an accuracy of 93%. But failures are rare: 27 of the 180 test readings. A model that answers "normal" every time, and never finds a failure, is right 153 times in 180, or 85%. So count the two kinds of mistake:
+
+| | Tree said normal | Tree said failure |
+|---|---|---|
+| Really normal (153) | 149 | 4 false alarms |
+| Really a failure (27) | 8 missed | 19 found |
+
+- **Recall** is the share of the real failures that were found: 19 / 27 = 70%.
+- **Precision** is the share of the alarms that were real: 19 / 23 = 83%.
+
+A missed failure costs a breakdown. A false alarm costs an inspection. Which matters more is a decision for the site.
+
+The plotted tree also has a branch that predicts failure for cold readings with low vibration. It comes from the formula of this practice data, not from real machines. Reading the tree is how you catch such things.
+
 ## Step 3: Overfitting in Trees
 
 <InArticleAd />
 
 
-A deep tree can memorize the training data perfectly. Every leaf contains exactly one class. Training accuracy is 100%. But the tree has learned the noise, not the signal.
+The **depth** of a tree is the number of questions from top to bottom. A deep tree can go on asking until it is right on every training reading. But its last questions separate single readings that differ only by chance, and they are wrong for new readings. This is **overfitting**: the model remembers its examples and not the pattern.
+
+The program grows trees of depth 1 to 20. At depth 4 the tree scores 97.6% on the training set and 93.3% on the test set. From depth 9 it scores 100% and 92.2%. At depth 1 both are 85.0%: that tree answers "normal" for everything.
 
 ```python
 import numpy as np
@@ -234,8 +248,8 @@ failure_score = (
     0.3 * (vibration - 3.0) +
     0.2 * (temperature - 70) / 10 +
     0.1 * (operating_hours - 5000) / 2000 +
-    0.4 * (vibration - 3.0) * (temperature - 70) / 100
-    + np.random.randn(n_samples) * 0.5
+    4.0 * (vibration - 3.0) * (temperature - 70) / 100
+    + np.random.randn(n_samples) * 0.3
 )
 threshold_val = np.percentile(failure_score, 85)
 labels = (failure_score > threshold_val).astype(int)
@@ -291,28 +305,23 @@ print("\nPlot saved as tree_depth_overfitting.png")
 <InArticleAd />
 
 
-A single tree is fragile. Change a few training points and the tree can look completely different. Random forests fix this by training many trees (typically 100 to 500) on random subsets of the data, then letting them vote on the prediction.
+A single tree is unstable: change a few training readings and its questions change. A random forest trains many trees (usually 100 to 500), each on a different random sample of the training readings, and takes the majority vote. The trees make different mistakes, and many cancel in the vote.
 
 ```text
-  Random Forest: Many Trees Vote
-  ──────────────────────────────────────────────
-
   Training data
        │
-       ├── Random subset 1 ──► Tree 1 ──► Prediction 1
-       ├── Random subset 2 ──► Tree 2 ──► Prediction 2
-       ├── Random subset 3 ──► Tree 3 ──► Prediction 3
-       │          ...              ...
-       └── Random subset N ──► Tree N ──► Prediction N
-                                              │
-                                    Majority vote
-                                              │
-                                    Final prediction
-
-  Each tree also uses a random subset of FEATURES
-  at each split (not all features). This decorrelates
-  the trees and makes the ensemble more stable.
+       ├── Random sample 1 ──► Tree 1 ──► Answer 1
+       ├── Random sample 2 ──► Tree 2 ──► Answer 2
+       ├── Random sample 3 ──► Tree 3 ──► Answer 3
+       │          ...             ...
+       └── Random sample N ──► Tree N ──► Answer N
+                                             │
+                                       Majority vote
+                                             │
+                                       Final answer
 ```
+
+At each question a tree may also choose among only a random few of the features, so the trees differ more and the vote is steadier.
 
 ```python
 import numpy as np
@@ -334,8 +343,8 @@ failure_score = (
     0.3 * (vibration - 3.0) +
     0.2 * (temperature - 70) / 10 +
     0.1 * (operating_hours - 5000) / 2000 +
-    0.4 * (vibration - 3.0) * (temperature - 70) / 100
-    + np.random.randn(n_samples) * 0.5
+    4.0 * (vibration - 3.0) * (temperature - 70) / 100
+    + np.random.randn(n_samples) * 0.3
 )
 threshold_val = np.percentile(failure_score, 85)
 labels = (failure_score > threshold_val).astype(int)
@@ -372,8 +381,10 @@ print(f"\nDetailed Random Forest Report:")
 print(classification_report(y_test, y_pred_forest, target_names=['Normal', 'Failure']))
 ```
 
-<Card title="Out-of-Bag Score" icon="star">
-Each tree in the forest is trained on a random subset (with replacement) of the training data. The samples left out of that subset are called "out-of-bag" (OOB) samples. The forest evaluates each tree on its OOB samples and averages the results. This gives you a validation score for free, without needing a separate validation set. If the OOB score is close to your test accuracy, your model is generalizing well.
+The forest is a little more accurate than the single tree (93.9% against 93.3%). But its recall for failures is 0.59: it found 16 of the 27 and missed 11, where the tree missed 8. The model with the higher accuracy misses more failures.
+
+<Card title="Out-of-bag score" icon="star">
+Each tree's random sample leaves out about one third of the training readings: its "out-of-bag" (OOB) readings. The forest tests each tree on the readings it did not see. This gives a score on unseen readings without a separate set. Here it is 0.938, close to the test accuracy of 0.939.
 </Card>
 
 ## Step 5: Feature Importance
@@ -381,12 +392,12 @@ Each tree in the forest is trained on a random subset (with replacement) of the 
 <InArticleAd />
 
 
-One of the greatest advantages of tree-based models: they tell you which features matter most. Feature importance measures how much each feature contributes to reducing node impurity (gini or entropy) across all the splits in all the trees during training. This is computed on the training data, not on held-out test data, so a feature that dominates the training splits but does not generalize will still score high. Treat it as a ranking of what the model used, not a guarantee of real-world predictive power.
+**Feature importance** is the share of the total fall in impurity that came from questions about each feature, over all the trees. It is computed on the training set, so it ranks what the model used. It does not prove that a sensor predicts failure on a real machine.
 
-<Card title="Gotcha: Correlated Features Share Importance" icon="warning">
-When two features carry similar information (say vibration RMS and vibration peak, or two thermocouples on the same housing), the forest will pick one or the other at each split almost arbitrarily. The importance ends up split between them, and a genuinely useful feature can look half as important as it really is, or even slip below a less useful but uncorrelated feature.
+<Card title="Correlated features share importance" icon="warning">
+When two features carry nearly the same information (two temperature probes on one housing), the forest uses one or the other almost by chance. The importance is divided between them, so a useful sensor can look half as important as it is.
 
-Quick sanity check: compute `np.corrcoef(X.T)` before trusting the ranking. If two features correlate above about 0.85, their importances are not independent and should be interpreted together, not compared head-to-head. Permutation importance (`sklearn.inspection.permutation_importance`) is more robust to this, because it re-shuffles one feature at a time on held-out data.
+Compute `np.corrcoef(X.T)` before you trust the ranking. If two features correlate above about 0.85, read their importances together. Permutation importance (`sklearn.inspection.permutation_importance`) suffers less from this.
 </Card>
 
 ```python
@@ -407,8 +418,8 @@ failure_score = (
     0.3 * (vibration - 3.0) +
     0.2 * (temperature - 70) / 10 +
     0.1 * (operating_hours - 5000) / 2000 +
-    0.4 * (vibration - 3.0) * (temperature - 70) / 100
-    + np.random.randn(n_samples) * 0.5
+    4.0 * (vibration - 3.0) * (temperature - 70) / 100
+    + np.random.randn(n_samples) * 0.3
 )
 threshold_val = np.percentile(failure_score, 85)
 labels = (failure_score > threshold_val).astype(int)
@@ -434,7 +445,7 @@ print("-" * 44)
 sorted_idx = np.argsort(importances)[::-1]
 for idx in sorted_idx:
     ratio = importances[idx] / importances[sorted_idx[-1]]
-    print(f"  {feature_names[idx]:<20} {importances[idx]:<12.4f} {std[idx]:<10.4f} ({ratio:.1f}x most important)")
+    print(f"  {feature_names[idx]:<20} {importances[idx]:<12.4f} {std[idx]:<10.4f} ({ratio:.1f}x the least important)")
 
 # ── Bar chart ──
 plt.figure(figsize=(8, 5))
@@ -465,6 +476,10 @@ print(f"\nPlot saved as feature_importance.png")
 
 <InArticleAd />
 
+The last program compares five models. Two of its scores are new:
+
+- **F1** combines precision and recall in one number from 0 to 1. It stays low when a model misses failures.
+- **CV mean** comes from cross-validation: the training set is cut into 5 parts, the model is trained 5 times, each time tested on a different part, and the scores are averaged.
 
 ```python
 import numpy as np
@@ -488,8 +503,8 @@ failure_score = (
     0.3 * (vibration - 3.0) +
     0.2 * (temperature - 70) / 10 +
     0.1 * (operating_hours - 5000) / 2000 +
-    0.4 * (vibration - 3.0) * (temperature - 70) / 100
-    + np.random.randn(n_samples) * 0.5
+    4.0 * (vibration - 3.0) * (temperature - 70) / 100
+    + np.random.randn(n_samples) * 0.3
 )
 threshold_val = np.percentile(failure_score, 85)
 labels = (failure_score > threshold_val).astype(int)
@@ -552,8 +567,10 @@ plt.savefig('model_comparison.png', dpi=100)
 plt.show()
 
 print("\nKey observations:")
-print("  1. Deep trees overfit (high train accuracy, lower test accuracy).")
-print("  2. Random forests are more stable and score higher on test data.")
+print("  1. The deep tree overfits (100% train accuracy, lower test and CV accuracy).")
+print("  2. The random forests and the shallow tree give the best test and CV scores.")
+print("     With only three features the forest gains little over a well-chosen")
+print("     shallow tree, but it does not need the depth to be tuned so carefully.")
 print("  3. Logistic regression struggles with the nonlinear decision boundary.")
 print("  4. Cross-validation gives a more reliable estimate than a single test split.")
 print("\nPlot saved as model_comparison.png")
@@ -565,17 +582,17 @@ print("\nPlot saved as model_comparison.png")
 
 
 <Steps>
-1. **Decision trees are flowcharts the model discovers from data.** At each node, the tree picks the feature and threshold that best separates the classes. You can read and understand the rules.
+1. **A decision tree is a list of questions found in the data.** At each node it picks the feature and the threshold that leave the groups least mixed. You can read the questions and check them.
 
-2. **Deep trees overfit, shallow trees underfit.** The `max_depth` parameter is the easiest complexity knob, but `min_samples_split` (minimum samples required to split a node) and `min_samples_leaf` (minimum samples required in each leaf) are equally important. They stop the tree from carving out tiny regions around noise. Use cross-validation to find the right combination.
+2. **A deep tree overfits.** `max_depth`, `min_samples_split` (the fewest readings a group needs before it is divided) and `min_samples_leaf` (the fewest readings in a leaf) limit it. Choose them by cross-validation.
 
-3. **Random forests are ensembles of decorrelated trees.** Each tree is trained on a random subset of data and features. The ensemble vote is more reliable than any single tree.
+3. **A random forest is many different trees that vote.** The vote is steadier than any single tree.
 
-4. **Feature importance tells you which inputs matter.** This is actionable information: invest in better sensors for the most important features, or drop irrelevant features to simplify the model.
+4. **With rare failures, accuracy hides the missed ones.** Count missed failures and false alarms.
 
-5. **Trees do not need feature scaling.** Unlike logistic regression and gradient descent, trees split on thresholds, so the scale of features does not matter.
+5. **Feature importance ranks what the model used.** It can show which sensor deserves a better instrument.
 
-6. **Cross-validation gives reliable performance estimates.** A single train/test split can be lucky or unlucky. K-fold cross-validation averages over K splits.
+6. **Trees do not need feature scaling.** A tree compares one feature with a threshold, so the size of the numbers does not matter.
 </Steps>
 
 ## What is Next
@@ -583,7 +600,7 @@ print("\nPlot saved as model_comparison.png")
 <InArticleAd />
 
 
-Next, in [How Models Learn: Gradient Descent](./how-models-learn-gradient-descent), you will look under the hood at how models actually learn. Trees use a different mechanism (recursive splitting), but most ML models, including logistic regression, neural networks, and deep learning, learn through gradient descent. Understanding gradient descent is understanding the engine behind modern AI.
+Next, [How Models Learn: Gradient Descent](/education/ml-ai-fundamentals/how-models-learn-gradient-descent/) shows how the numbers of a model are adjusted in small steps until its answers match the examples. Logistic regression and neural networks are fitted this way.
 
 <MlAiFundamentalsComments />
 

@@ -27,22 +27,23 @@ import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/
 
 import PodcastEmbed from '../../../../components/PodcastEmbed.astro';
 
-The term "machine learning" sounds like it requires a PhD and a GPU cluster, which stops many engineers from using it even when a simple model would save them weeks of hand-tuning rules. In reality, you already know the core idea: fit a function to data. You have done it every time you called `np.polyfit` on a scatter of measurement points. Everything in ML, from logistic regression to deep neural networks, is a variation on that theme. This lesson makes the connection explicit, then shows you where naive curve fitting breaks down (overfitting, underfitting, the bias-variance tradeoff) and what the discipline of ML adds to fix it. #MachineLearning #CurveFitting #BiasVariance
+Machine learning sounds like a subject for specialists, so many technicians and engineers leave it alone and tune rules and alarm limits by hand for weeks, when a small model would do the work. The central idea is small. A model is a rule with adjustable numbers. To fit it, a program changes those numbers until the answers of the rule match a set of measured examples. A straight line through measured points is such a model. In this lesson you fit one, see how a fit goes wrong when the rule is too simple or too flexible, and learn to check a model on data it has not seen before you trust it. #MachineLearning #CurveFitting #BiasVariance
 
 <PodcastEmbed src="https://open.spotify.com/episode/7eSgZxYuij1pbC6kfQlQJ0?si=NuuZIfWZQeicoHff7UcMFg" />
 
-## Curve Fitting Is Machine Learning
+## Curve fitting is machine learning
 
-If you have taken the [Applied Mathematics course](/education/applied-mathematics/) or any engineering math class, you have fitted curves. You measured some physical quantity, plotted it, and drew a line (or polynomial, or exponential) through the points. The goal was to capture the underlying relationship so you could predict new values.
+Suppose you measure the electrical power a pump draws at several flows and plot the points. You draw a line through them, so that you can read the power at a flow you did not measure. That is curve fitting. The line is the model, and its slope and its intercept (its height where $x = 0$) are the two adjustable numbers. If you have taken the [Applied Mathematics course](/education/applied-mathematics/), you have done this already.
 
-Machine learning is the same process with three additions:
-1. The computer searches for the best fit automatically (optimization).
-2. You test the fit on data the model has never seen (generalization).
-3. You have formal tools for deciding how complex the model should be (model selection).
+Machine learning is the same work with three additions:
 
-Let us start at the beginning.
+1. A program searches for the best numbers (optimization).
+2. You test the fitted rule on data it has never seen (generalization).
+3. You measure how flexible the rule should be (model selection).
 
-### Fitting a Line with NumPy
+### Fitting a line with NumPy
+
+The program below makes 30 points that follow the line $y = 2x + 1$, with random scatter added in the place of measurement noise. You can read $x$ as the flow of the pump and $y$ as its power. Then `np.polyfit` finds the slope and the intercept that fit the points best.
 
 ```python
 import numpy as np
@@ -77,14 +78,16 @@ plt.show()
 print("Plot saved as linear_fit.png")
 ```
 
-This is the simplest possible ML model. You gave it data, it found the best line, and now it can predict y for any new x. The coefficients are close to the true values (slope 2, intercept 1) but not exact, because of noise. That gap between the fitted values and the true relationship is the first thing ML teaches you to think carefully about.
+The program prints a slope of 1.796 and an intercept of 1.643. They are close to the true values (2 and 1) and not equal to them, because the noise moved the points. This is a complete machine learning model, the simplest there is: you gave the program examples, it found the two numbers, and the rule now predicts $y$ for any new $x$.
 
-## When Fitting Goes Wrong: Overfitting
+## When fitting goes wrong: overfitting
 
 <InArticleAd />
 
 
-What happens if you use a more flexible model? The next example switches to a harder underlying relationship, a sine wave with noise, so you can see how model complexity fails. Instead of a straight line, fit a polynomial of degree 15.
+What happens with a more flexible rule? A polynomial of degree 3 is a curve with 4 adjustable numbers, and one of degree 15 has 16. The more numbers, the more bends the curve can make. The next program uses a harder pattern, one wave of a sine curve with noise, and fits it three times: with degree 1 (a straight line), degree 3 and degree 15.
+
+For each fit it prints the training error as the mean squared error (MSE): take the miss at each point, square it, and average the squares.
 
 ```python
 import numpy as np
@@ -123,21 +126,21 @@ plt.savefig('overfitting_comparison.png', dpi=100)
 plt.show()
 print("Plot saved as overfitting_comparison.png")
 print()
-print("Notice: degree 15 has the LOWEST training error but the WORST fit.")
-print("It passes through every point but wiggles wildly between them.")
-print("That is overfitting.")
+print("Notice: degree 15 has the LOWEST training error, but it is further")
+print("from the true sine than degree 3. It bends toward individual noisy")
+print("points and wiggles between them. That is overfitting.")
 ```
 
-Look at the degree-15 plot. The curve passes through (or very near) every training point. Its training error is nearly zero. But the curve wiggles wildly between points. If you fed it a new x value between the training points, the prediction would be terrible.
+Look at the degree 15 plot. The curve bends toward single training points, so its training error is the lowest of the three (about 0.02, against about 0.08 for degree 3 and 0.33 for the straight line). But the curve swings between the points and near the two ends, and it is further from the true sine than the degree 3 curve. For a new $x$ between the training points, its prediction would be worse than the prediction of the simpler model.
 
-This is **overfitting**: the model memorized the noise in the training data instead of learning the underlying pattern.
+This is **overfitting**: the model has copied the noise in the training data, and not the pattern under the noise.
 
-## The Train/Test Split: The Fundamental Idea
+## The train/test split: the fundamental idea
 
 <InArticleAd />
 
 
-How do you detect overfitting? You hold out some data that the model never sees during training, then measure how well it predicts that unseen data.
+How do you detect overfitting? Keep some of the data back. The model is fitted to one part, the training set, and never sees the other part, the test set. Then you measure how well it predicts the test set.
 
 ```python
 import numpy as np
@@ -150,10 +153,15 @@ n_total = 50
 x_all = np.sort(np.random.uniform(0, 2 * np.pi, n_total))
 y_all = np.sin(x_all) + np.random.randn(n_total) * 0.3
 
-# Split: first 35 for training, last 15 for testing
+# Split: 35 points chosen at random for training, the other 15 for testing.
+# The split must be random. If you took the first 35 sorted points, the test
+# points would all lie to the right of the training range, and the test
+# would measure extrapolation instead of generalization.
 n_train = 35
-x_train, y_train = x_all[:n_train], y_all[:n_train]
-x_test, y_test = x_all[n_train:], y_all[n_train:]
+indices = np.random.permutation(n_total)
+train_idx, test_idx = indices[:n_train], indices[n_train:]
+x_train, y_train = x_all[train_idx], y_all[train_idx]
+x_test, y_test = x_all[test_idx], y_all[test_idx]
 
 print(f"Training samples: {len(x_train)}")
 print(f"Test samples:     {len(x_test)}")
@@ -199,103 +207,87 @@ plt.show()
 print("\nPlot saved as train_test_error.png")
 ```
 
-This is the most important plot in all of machine learning. As model complexity increases:
-- **Training error** always decreases (more flexibility means a better fit to the training points).
-- **Test error** decreases at first, then increases (the model starts fitting noise instead of signal).
+The program prints both errors for every degree from 1 to 15. As the degree rises:
 
-The best model is the one with the lowest test error. Not the lowest training error.
+- The **training error** always falls. More flexibility gives a closer fit to the training points.
+- The **test error** falls at first and then rises, when the curve starts to follow the noise. In this run it is lowest at degree 5 (about 0.06) and about nine times larger at degree 15 (about 0.55). It does not change smoothly, because 15 test points give only a rough estimate.
 
-## The Bias-Variance Tradeoff
+The best model is the one with the lowest test error, not the one with the lowest training error.
+
+## The bias-variance tradeoff
 
 <InArticleAd />
 
 
-The pattern above has a name: the **bias-variance tradeoff**.
+This pattern has a name: the **bias-variance tradeoff**. The two words name the two ways in which a model can be wrong on new data.
 
 ```text
-  The Bias-Variance Tradeoff
-  ──────────────────────────────────────────────────
+  error on new data
+    │ \                          /
+    │  \                        /
+    │   \                      /
+    │    \                    /
+    │     \                  /
+    │      \________________/
+    │
+    └────────────────────────────────►
+      simple                  flexible
+            flexibility of the model
 
-  Error
-    |
-    |  \                          /
-    |   \    Total Error         /
-    |    \      (U-shaped)      /
-    |     \       ___          /
-    |      \     /   \        /
-    |       \   /     \      /
-    |        \_/       \____/
-    |
-    |  Bias (high)              Bias (low)
-    |  Variance (low)           Variance (high)
-    |
-    +────────────────────────────────────────────
-         Simple  ──────►  Complex
-                Model Complexity
-
-  Underfitting                  Overfitting
-  (too simple,                  (too complex,
-   misses the                    memorizes
-   pattern)                      the noise)
-
-  Sweet spot: enough complexity to capture
-  the pattern, not so much that it fits noise.
+    too simple            too flexible
+    (underfitting)        (overfitting)
 ```
 
-**Bias** is the error from wrong assumptions. A straight line fitted to a sine wave has high bias: no matter how much data you give it, a line can never capture the curve. It underfits.
+**Bias** is the error of a rule that is too simple for the pattern. A straight line fitted to a sine wave has high bias: however much data you give it, a line cannot follow the curve. It underfits.
 
-**Variance** is the error from sensitivity to fluctuations in the training data. A degree-15 polynomial changes dramatically if you add or remove a single training point. It overfits.
+**Variance** is the error of a rule that changes too much with the data it happened to receive. A degree 15 polynomial changes its shape when you add or remove one training point. It overfits.
 
-The goal is to find the sweet spot: enough model complexity to capture the real pattern, but not so much that the model memorizes noise.
+The aim is the lowest part of the curve: enough flexibility to follow the real pattern, and not so much that the model follows the noise.
 
 <Card title="Connect to Applied Math" icon="star">
-If you studied interpolation in the Applied Mathematics course, you saw that high-degree polynomial interpolation can oscillate wildly (Runge's phenomenon). Overfitting in ML is the same idea: too much flexibility, not enough constraint.
+If you studied interpolation in the Applied Mathematics course, you saw a polynomial of high degree swing widely between its points (Runge's phenomenon). Overfitting is the same effect.
 </Card>
 
-## Types of Machine Learning
+## Types of machine learning
 
 <InArticleAd />
 
 
-Not every problem is curve fitting. ML breaks into three families based on the type of feedback the model receives during training.
+Curve fitting is one kind of machine learning. There are three kinds, and they differ in what the model is told during training.
 
-### Supervised Learning
+### Supervised learning
 
-You have input/output pairs: "given this input, the correct output is that." The model learns the mapping.
+You have examples for which the right answer is known: for this input, the correct output is that. The model learns the rule that connects them. Each input is called a feature, and the known answer is called a label.
 
-```text
-  Supervised Learning
-  ──────────────────────────────────────
-  Input (features)     Output (label)
-  ──────────────────   ──────────────
-  [temp, humidity]  →  "rain" or "no rain"
-  [voltage, current] → "defective" or "good"
-  [x1, x2, x3]     →  predicted y value
-```
+| Input (features) | Output (label) |
+|---|---|
+| Flow and pressure of a pump | Power in kW |
+| Vibration and temperature of a bearing | Healthy or failing |
+| Time since the door of a cold room opened | Air temperature in °C |
 
-- **Regression**: output is a continuous number (temperature, price, voltage).
-- **Classification**: output is a category (defective/good, spam/not spam, digit 0 through 9).
+- **Regression**: the output is a number (a power, a temperature).
+- **Classification**: the output is a category (healthy or failing, good or defective).
 
-Most of this course focuses on supervised learning because it is the most immediately useful for engineers.
+Most of this course is about supervised learning, because it is the kind you can use soonest in engineering work.
 
-### Unsupervised Learning
+### Unsupervised learning
 
-You have data but no labels. The model finds structure on its own.
+You have data and no labels. The model looks for structure without being told the answers.
 
-- **Clustering**: group similar data points together (k-means, DBSCAN).
-- **Dimensionality reduction**: compress high-dimensional data into fewer dimensions (PCA, t-SNE).
-- **Anomaly detection**: find data points that do not fit the normal pattern.
+- **Clustering**: put similar data points into groups.
+- **Dimensionality reduction**: describe data that has many measurements per point with only a few numbers.
+- **Anomaly detection**: find the data points that do not fit the normal pattern.
 
-### Reinforcement Learning
+### Reinforcement learning
 
-An agent takes actions in an environment and receives rewards or penalties. Over time, it learns a strategy (policy) that maximizes cumulative reward. Robotics, game playing, and control systems use reinforcement learning. We will not cover it in this course, but the gradient descent techniques you learn here apply to RL as well.
+A program acts and receives a reward or a penalty for each action. Over many trials it learns which actions bring the most reward. Robotics uses it. This course does not cover it.
 
-## Complete Example: The Overfitting Lab
+## Complete example: the overfitting lab
 
 <InArticleAd />
 
 
-This script ties everything together. It generates a noisy sine dataset, splits it into train and test sets, fits polynomials of increasing degree, and produces three plots: the fits, the error curves, and a summary table.
+This program joins the parts of the lesson. It makes a noisy sine data set, splits it into a training set and a test set, fits polynomials of rising degree, and produces a table and two plots: the fits and the error curves.
 
 ```python
 import numpy as np
@@ -398,31 +390,31 @@ plt.show()
 print("\nPlots saved: overfitting_lab_fits.png, overfitting_lab_error_curve.png")
 ```
 
-Run that script. Study the three fits side by side. Look at the error curve. The pattern is unmistakable: training error always goes down, but test error hits a minimum and then climbs. That U-shaped test error curve is the signature of the bias-variance tradeoff, and recognizing it is the single most important skill in practical machine learning.
+Run the program and compare the three fits. In the table, the training error falls at every degree. The test error is lowest at degree 4 in this run and then climbs. When you see that, stop adding flexibility.
 
-## Key Takeaways
+## Key takeaways
 
 <InArticleAd />
 
 
 <Steps>
-1. **ML is curve fitting, generalized.** You have data, you find a function that describes it. `np.polyfit` is a machine learning algorithm.
+1. **Machine learning is curve fitting, extended.** A model is a rule with adjustable numbers, and fitting sets those numbers from data. `np.polyfit` is a machine learning algorithm.
 
-2. **Always evaluate on unseen data.** Training error tells you how well the model memorized. Test error tells you how well it generalizes. Only test error matters.
+2. **Always measure on unseen data.** The training error shows how closely the model follows the data it was given. Judge a model by its test error.
 
-3. **Underfitting means your model is too simple.** It cannot capture the real pattern. Increase complexity (more features, higher degree, more flexible model).
+3. **Underfitting means the model is too simple.** Give it more flexibility or more useful inputs.
 
-4. **Overfitting means your model is too complex.** It captures noise along with the signal. Reduce complexity, get more data, or add regularization (covered later in the course).
+4. **Overfitting means the model is too flexible.** It follows the noise as well as the pattern. Reduce its flexibility, collect more data, or add regularization (covered later in the course).
 
-5. **The bias-variance tradeoff guides every decision.** Every model choice, from polynomial degree to neural network depth, trades bias for variance. Your job is to find the sweet spot.
+5. **Every choice of model trades bias against variance.** Choose by the lowest test error.
 </Steps>
 
-## What is Next
+## What is next
 
 <InArticleAd />
 
 
-Next, in [Linear Regression and Prediction](./linear-regression-prediction), you will move from single-variable polynomial fitting to multi-feature linear regression using scikit-learn. You will build a sensor data pipeline, learn feature scaling, and evaluate your model with proper metrics.
+Next, in [Linear Regression and Prediction](/education/ml-ai-fundamentals/linear-regression-prediction/), you go from one input to several. You build a model that predicts an indoor temperature from sensor readings with scikit-learn, and judge it with standard measures.
 
 <MlAiFundamentalsComments />
 

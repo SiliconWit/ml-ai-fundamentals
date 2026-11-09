@@ -25,45 +25,41 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/MlAiFundamentalsComments.astro';
 
-In the previous lessons, scikit-learn and np.polyfit found the best parameters for you automatically. But when something goes wrong, when the model fails to converge, when the loss plateaus, or when training takes forever, you cannot fix what you do not understand. Gradient descent is the single algorithm behind nearly all ML training: neural networks, logistic regression, SVMs, and deep learning all use it (or a variant) to find the best parameters. The idea fits in one sentence: measure how wrong the model is, compute which direction to adjust the parameters, take a small step, and repeat. This lesson implements it from scratch so you can see every number change on every iteration and diagnose problems when they arise. #GradientDescent #Optimization #MachineLearning
+So far, `np.polyfit` and scikit-learn found the best numbers of a model for you. When a fit fails, when the error stops falling, or when training takes hours, you cannot repair a method you have never looked inside. Gradient descent is the method that finds the adjustable numbers of most models, from logistic regression to neural networks. The idea fits in one sentence: measure how wrong the model is, find the direction in which each number should change, take a small step, and repeat. In this lesson you write it yourself in a few lines of NumPy, so that you can watch every number change at every step and recognize the common failures. #GradientDescent #Optimization #MachineLearning
 
-## The Blindfolded Hill Analogy
+## The blindfolded hill analogy
 
-Imagine you are blindfolded on a hilly landscape. You want to reach the lowest valley. You cannot see, but you can feel the slope under your feet. If the ground tilts to the left, you step left. If it tilts forward, you step forward. Each step takes you a little lower. After many small steps, you arrive at the bottom (or close to it).
+Imagine that you stand on a hillside with your eyes covered, and you want to reach the lowest point of the valley. You can feel the slope under your feet. You take a step in the direction that goes down, feel the slope again, and step again. After many small steps you are at the bottom, or close to it.
 
-That is gradient descent. The landscape is the **loss function** (how wrong the model is). The slope you feel is the **gradient** (the direction of steepest increase in error). You step in the opposite direction (downhill). The size of your step is the **learning rate**.
+That is gradient descent:
+
+- The height of the ground is the **loss**: one number that says how wrong the model is. The **loss function** gives it for every setting of the adjustable numbers, which are called **parameters** or weights.
+- The slope you feel is the **gradient**. It points in the direction in which the loss rises fastest, so you step the opposite way.
+- The length of your step is set by the **learning rate**.
+
+A hillside has two directions. A model has one direction for each parameter, often thousands, and the rule is the same in every one.
 
 ```text
-  The Loss Landscape
-  ──────────────────────────────────────────────
-
-  Loss
-    |
-    |  *  Start here
-    |   \
-    |    \    The gradient points UPHILL
-    |     \   (toward increasing loss).
-    |      \
-    |       \  You step in the OPPOSITE
-    |        \ direction (downhill).
-    |         \
-    |          \___
-    |              \___
-    |                  \___*  Minimum
-    |
-    +─────────────────────────────────────
-              Parameter value (w)
-
-  Update rule:
-    w_new = w_old - learning_rate * gradient
-
-  That single equation is the engine behind:
-    - Linear regression
-    - Logistic regression
-    - Neural networks
-    - Deep learning
-    - Transformer models (GPT, etc.)
+  loss
+    │ ●  start
+    │  \
+    │   \     the gradient points uphill,
+    │    \    so each step goes the other way
+    │     \
+    │      \
+    │       \
+    │        \______●  lowest loss
+    └────────────────────────────────►
+          value of one parameter, w
 ```
+
+Each step applies one rule: the new value of a parameter is its old value minus the learning rate times the gradient.
+
+$$
+w_{\text{new}} = w_{\text{old}} - \eta \times \text{gradient}
+$$
+
+Here $w$ is a parameter and $\eta$ (the Greek letter eta) is the learning rate, written `lr` in the programs. The whole method is a loop:
 
 ```mermaid
 flowchart TD
@@ -76,31 +72,29 @@ flowchart TD
     D -- Yes --> G[Training complete]
 ```
 
-## The Loss Function: How Wrong Is the Model?
+## The loss function: how wrong is the model?
 
 <InArticleAd />
 
 
-Before you can improve a model, you need a number that tells you how wrong it is. For regression, the most common loss function is **Mean Squared Error** (MSE).
-
-If you studied optimization or least-squares in the Applied Mathematics course, you have seen this before. The loss is the average of the squared differences between predictions and actual values:
+Before you can improve a model, you need one number that says how wrong it is. For regression the usual loss function is the **mean squared error** (MSE): the average of the squared differences between the actual values and the predictions.
 
 $$
 \text{MSE} = \frac{1}{n} \sum_{i=1}^{n} (y_i - \hat{y}_i)^2
 $$
 
-where $y_i$ is the actual value and $\hat{y}_i$ is the prediction.
+Here $n$ is the number of examples, $y_i$ is the actual value of example $i$, and $\hat{y}_i$ is the prediction for it. The symbol $\sum$ means "add this up for all the examples".
 
-The squaring does two things: it makes all errors positive, and it penalizes large errors more than small ones. A prediction that is off by 10 contributes 100 to the loss, while a prediction off by 1 contributes only 1.
+Squaring does two things. It makes every error positive, and it makes large errors count more than small ones. A prediction that is wrong by 10 adds 100 to the sum, and a prediction that is wrong by 1 adds only 1.
 
-## The Gradient: Which Way Is Downhill?
+## The gradient: which way is downhill?
 
 <InArticleAd />
 
 
-The gradient of the loss with respect to a parameter tells you how the loss changes when you nudge that parameter. If the gradient is positive, increasing the parameter increases the loss (bad), so you should decrease the parameter. If the gradient is negative, increasing the parameter decreases the loss (good), so you should increase it.
+The gradient of the loss for one parameter says how the loss changes when that parameter rises a little. If the gradient is positive, a higher value gives a higher loss, so you lower the parameter. If it is negative, you raise it.
 
-For linear regression with a single feature ($\hat{y} = wx + b$), the gradients are:
+Take a line with one feature, $\hat{y} = wx + b$, with slope $w$ and intercept $b$. The symbol $\partial \text{MSE} / \partial w$ is read "the change in the MSE for a small change in $w$, with $b$ held still". The two gradients are:
 
 $$
 \frac{\partial \text{MSE}}{\partial w} = \frac{-2}{n} \sum_{i=1}^{n} x_i (y_i - \hat{y}_i)
@@ -110,14 +104,14 @@ $$
 \frac{\partial \text{MSE}}{\partial b} = \frac{-2}{n} \sum_{i=1}^{n} (y_i - \hat{y}_i)
 $$
 
-If you have taken calculus, these are just the chain rule applied to the MSE formula. If not, the key insight is: the gradient is a number that tells you the direction and magnitude of the steepest slope. You do not need to derive it from scratch every time; frameworks (and even NumPy) compute it for you.
+Both come from the MSE formula by the rules of calculus, and for larger models software derives them. Each one is an average of the errors $(y_i - \hat{y}_i)$. When the predictions are too low on average, both gradients are negative, and the update rule raises $w$ and $b$.
 
-## Gradient Descent in 25 Lines
+## Gradient descent in 25 lines
 
 <InArticleAd />
 
 
-Here is linear regression implemented entirely with gradient descent. No scikit-learn. Just NumPy.
+Here is linear regression fitted by gradient descent alone, with NumPy and no scikit-learn. The data follows $y = 3x + 7$ with noise. One pass of the loop, which uses all the data once, is called an **epoch**.
 
 ```python
 import numpy as np
@@ -133,7 +127,7 @@ y = 3 * x + 7 + np.random.randn(n) * 2
 w = np.random.randn()  # weight (slope)
 b = np.random.randn()  # bias (intercept)
 lr = 0.01              # learning rate
-epochs = 200           # number of iterations
+epochs = 2000          # number of iterations
 
 print(f"True parameters:    w = 3.000, b = 7.000")
 print(f"Initial parameters: w = {w:.3f}, b = {b:.3f}")
@@ -157,8 +151,8 @@ for epoch in range(epochs):
     w = w - lr * dw
     b = b - lr * db
 
-    # Print progress every 20 epochs
-    if epoch % 20 == 0 or epoch == epochs - 1:
+    # Print progress every 200 epochs
+    if epoch % 200 == 0 or epoch == epochs - 1:
         print(f"Epoch {epoch:>4d}: loss = {loss:.4f}, w = {w:.4f}, b = {b:.4f}")
 
 print(f"\nFinal parameters: w = {w:.3f}, b = {b:.3f}")
@@ -166,12 +160,16 @@ print(f"True parameters:  w = 3.000, b = 7.000")
 print(f"Final loss: {losses[-1]:.4f}")
 ```
 
-That is the complete algorithm. Twenty-five lines of meaningful code. Every ML model you will ever use is doing some version of this loop: predict, compute loss, compute gradient, update parameters.
+The loop ends at about $w = 2.908$ and $b = 7.430$ with a loss of about 3.23. That is the least-squares line for these 100 noisy points, so it is close to the true values (3 and 7) and not equal to them. Notice that $w$ is almost right after 200 epochs, and $b$ needs more than 1,000. The feature $x$ runs from 0 to 10 and is not scaled, so the loss is a long narrow valley: steep in the $w$ direction and nearly flat in the $b$ direction.
 
-## Visualizing the Learning Process
+That is the complete algorithm: predict, compute the loss, compute the gradient, update the parameters. Larger models run the same loop with more parameters.
+
+## Visualizing the learning process
 
 <InArticleAd />
 
+
+The next program runs the same loop and keeps every value of $w$ and $b$. It plots the loss at each epoch, the two parameters at each epoch, and the line at five moments of the training.
 
 ```python
 import numpy as np
@@ -188,7 +186,7 @@ y = 3 * x + 7 + np.random.randn(n) * 2
 w = np.random.randn()
 b = np.random.randn()
 lr = 0.01
-epochs = 200
+epochs = 2000
 
 losses = []
 w_history = [w]
@@ -230,7 +228,7 @@ axes[1].grid(True, alpha=0.3)
 
 # ── Plot 3: Line Fitting Animation (snapshots) ──
 x_line = np.linspace(0, 10, 100)
-snapshot_epochs = [0, 5, 20, 50, 199]
+snapshot_epochs = [0, 5, 50, 300, 2000]
 
 axes[2].scatter(x, y, alpha=0.3, s=10, color='gray', label='Data')
 colors = plt.cm.viridis(np.linspace(0, 1, len(snapshot_epochs)))
@@ -253,16 +251,16 @@ plt.savefig('gradient_descent_visualization.png', dpi=100)
 plt.show()
 print("Plot saved as gradient_descent_visualization.png")
 print("\nLeft: the loss drops sharply in early epochs, then levels off.")
-print("Middle: both parameters converge to their true values.")
+print("Middle: both parameters settle close to their true values (w quickly, b slowly).")
 print("Right: the line starts random and rotates into place.")
 ```
 
-## Learning Rate: The Most Important Hyperparameter
+## Learning rate: the most important hyperparameter
 
 <InArticleAd />
 
 
-The learning rate controls how big each step is. Get it wrong and nothing works.
+The learning rate sets the length of each step. It is a **hyperparameter**: a setting that you choose, not a number that the model learns. The program runs the same fit with four learning rates.
 
 ```python
 import numpy as np
@@ -323,92 +321,78 @@ plt.savefig('learning_rate_comparison.png', dpi=100)
 plt.show()
 
 print("Learning rate effects:")
-print(f"  lr = 0.0001: Too small. The model barely moves in 200 epochs.")
-print(f"  lr = 0.01:   Good. Converges smoothly.")
-print(f"  lr = 0.05:   Faster convergence but may oscillate.")
-print(f"  lr = 0.1:    May overshoot and diverge (loss explodes).")
+print(f"  lr = 0.0001: Too small. The loss is still far from the minimum after 200 epochs.")
+print(f"  lr = 0.01:   Good. The loss falls smoothly.")
+print(f"  lr = 0.05:   Too large. Every step overshoots and the loss explodes.")
+print(f"  lr = 0.1:    Far too large. The loss explodes within a few steps.")
+print(f"  For this unscaled data the largest stable learning rate is about 0.03.")
 print(f"\nPlot saved as learning_rate_comparison.png")
 ```
 
+With a learning rate that is too small (0.0001 here), every step goes the right way and almost nothing happens. After 200 epochs the loss is still 47:
+
 ```text
-  Learning Rate: Too Small vs Too Large
-  ──────────────────────────────────────────────
-
-  Too small (lr = 0.0001):
-  Loss
-    |*****.............................
-    |     ****........................
-    |         ****....................
-    |             **** (barely moving)
-    +─────────────────────────────────
-                Epochs
-
-  Just right (lr = 0.01):
-  Loss
-    |*
-    | *
-    |  **
-    |    ****
-    |        ********************************
-    +─────────────────────────────────
-                Epochs
-
-  Too large (lr = 0.1):
-  Loss
-    |    *         *         *
-    |   * *       * *       * *
-    |  *   *     *   *     *   *
-    | *     *   *     *   *     *
-    |*       * *       * *       (oscillating or diverging)
-    +─────────────────────────────────
-                Epochs
+  loss
+    │●●●●●●
+    │      ●●●●●●●
+    │             ●●●●●●●●
+    │                     ●●●●●●●●●●
+    └──────────────────────────────────►
+                  epochs
 ```
 
-## Connection to PID Control
+With a good learning rate (0.01) the loss falls fast and then levels off near its lowest value:
+
+```text
+  loss
+    │●
+    │ ●
+    │  ●●
+    │    ●●●●
+    │        ●●●●●●●●●●●●●●●●●●●●●●●
+    └──────────────────────────────────►
+                  epochs
+```
+
+With a learning rate that is too large (0.05 or 0.1), every step jumps past the lowest point and lands higher on the other side. The loss grows without end:
+
+```text
+  loss
+    │                            ●
+    │                         ●
+    │                     ●
+    │              ●
+    │●●●   ●
+    └──────────────────────────────────►
+                  epochs
+```
+
+## Connection to PID control
 
 <InArticleAd />
 
 
-If you have studied control systems, gradient descent will feel familiar. It IS a feedback loop.
+If you have studied control systems, you know this already: gradient descent is a feedback loop. A controller measures an error, corrects in proportion to it, and repeats. Gradient descent corrects each parameter in proportion to its gradient, and repeats.
 
-```text
-  Gradient Descent as a Feedback Loop
-  ──────────────────────────────────────────────
+| Control loop | Gradient descent |
+|---|---|
+| Error signal | Gradient of the loss |
+| Controller gain | Learning rate |
+| Controller output | Change made to the parameters |
+| Response of the plant | New predictions and a new loss |
 
-  PID Controller:
-    error = setpoint - measurement
-    output = Kp * error + Ki * integral(error) + Kd * derivative(error)
-    actuator adjusts based on output
-    repeat
-
-  Gradient Descent:
-    error = loss (how wrong the model is)
-    gradient = direction of steepest increase in error
-    parameters -= learning_rate * gradient
-    repeat
-
-  The parallels:
-    error signal    <-->  loss function
-    controller gain <-->  learning rate
-    actuator output <-->  parameter update
-    plant response  <-->  new predictions
-
-  Gradient descent is a proportional controller (P-only)
-  where the gain is the learning rate and the error signal
-  is the gradient. Variants like Adam add momentum (similar
-  to the I and D terms) for better convergence.
-```
+The learning rate behaves as the gain does. Too low, and the loop is slow. Too high, and it overshoots, oscillates and at last runs away.
 
 <Card title="Connect to Applied Math" icon="star">
-If you studied optimization in the Applied Mathematics course, gradient descent is the iterative version of setting the derivative to zero. When you can solve the normal equations analytically (as in ordinary least squares), you get the answer in one step. Gradient descent is what you use when the equations are too complex to solve directly, which happens with neural networks, logistic regression, and most modern ML models.
+For a straight-line model the best parameters can be calculated directly, by setting the derivative of the loss to zero and solving the equations that result (the normal equations). This is what `np.polyfit` does. Gradient descent is for the models where those equations cannot be solved directly, such as logistic regression and neural networks.
 </Card>
 
-## Multivariate Gradient Descent
+## Multivariate gradient descent
 
 <InArticleAd />
 
 
-The same idea extends to multiple features. Instead of one weight, you have a vector of weights. The gradient is now a vector too: one partial derivative per weight.
+The same method works with several features: one weight for each feature, and one gradient for each weight. The program below has three features. It scales them first, so that the loss is equally steep in every direction and one learning rate fits all the weights.
 
 ```python
 import numpy as np
@@ -482,36 +466,22 @@ plt.show()
 print("\nPlot saved as multivariate_gd_loss.png")
 ```
 
-## Batch vs Stochastic Gradient Descent
+With scaled features the loss reaches its lowest value, 0.25, within about 100 epochs, at a learning rate five times larger than before.
+
+## Batch vs stochastic gradient descent
 
 <InArticleAd />
 
 
-So far, we have computed the gradient using ALL training samples on every iteration. This is called **batch gradient descent**. There are two alternatives.
+So far every step used all the training samples to calculate the gradient. This is **batch gradient descent**. With a million samples each step is slow, so there are two other ways:
 
-```text
-  Batch vs Stochastic vs Mini-Batch
-  ──────────────────────────────────────────────
+| Method | Samples used for each step | Behaviour |
+|---|---|---|
+| Batch | All of them | Smooth and steady, but each step is slow on a large data set |
+| Stochastic (SGD) | One, chosen at random | Each step is very fast, but the path is noisy and zig-zags |
+| Mini-batch | A random group, often 32 or 64 | Faster than batch and smoother than SGD |
 
-  Batch Gradient Descent:
-    Use ALL n samples to compute the gradient.
-    + Stable, smooth convergence.
-    - Slow for large datasets (must process everything each step).
-
-  Stochastic Gradient Descent (SGD):
-    Use ONE random sample to compute the gradient.
-    + Very fast per step.
-    - Noisy, zig-zag path toward the minimum.
-    + Noise can help escape local minima.
-
-  Mini-Batch Gradient Descent:
-    Use a random subset of B samples (typically B = 32 or 64).
-    + Compromise: faster than batch, smoother than SGD.
-    + Most common in practice (neural network training).
-
-  All three converge to the same minimum (in convex problems).
-  Mini-batch is the standard choice for most ML training.
-```
+Mini-batch is the usual choice, and it is how neural networks are trained.
 
 ```python
 import numpy as np
@@ -557,7 +527,9 @@ def run_gd(x, y, mode='batch', batch_size=32, lr=0.01, epochs=100):
     return losses, w, b
 
 # ── Run all three modes ──
-epochs = 200
+# Here one "epoch" is one parameter update (one step), so that the
+# three modes are compared step for step.
+epochs = 2000
 losses_batch, w_b, b_b = run_gd(x, y, mode='batch', lr=0.01, epochs=epochs)
 losses_sgd, w_s, b_s = run_gd(x, y, mode='sgd', lr=0.01, epochs=epochs)
 losses_mini, w_m, b_m = run_gd(x, y, mode='mini-batch', batch_size=32, lr=0.01, epochs=epochs)
@@ -596,12 +568,14 @@ print("  Mini-batch: moderate noise, good balance.")
 print("\nPlot saved as gd_modes_comparison.png")
 ```
 
-## Beyond Vanilla Gradient Descent
+After 2,000 steps the three are close to each other: batch gives $w = 2.98$ and $b = 7.21$, SGD gives 2.83 and 7.62, and mini-batch gives 2.95 and 7.17. The loss of SGD jumps up and down on the way, because each step looks at one sample only.
+
+## Beyond vanilla gradient descent
 
 <InArticleAd />
 
 
-The update rule `w -= lr * gradient` is what practitioners call **vanilla SGD**. Modern frameworks ship with several variants that improve on it in two ways: they add **momentum** so updates accumulate direction rather than rethinking at each step, and they **adapt the learning rate** per parameter so sensitive weights take smaller steps than robust ones.
+The plain rule `w -= lr * gradient` is called **vanilla** gradient descent. Libraries offer variants that improve it in two ways. **Momentum** keeps part of the previous step, so steps in a steady direction add up and zig-zags cancel. An **adaptive learning rate** gives every parameter its own step size.
 
 ```text
   Vanilla:         w -= lr * g
@@ -610,22 +584,22 @@ The update rule `w -= lr * gradient` is what practitioners call **vanilla SGD**.
                    adjusts step size for every parameter
 ```
 
-You will see `torch.optim.Adam` in PyTorch and `tf.keras.optimizers.Adam` in TensorFlow as the default choice. It usually converges faster than vanilla SGD and is far more forgiving about the learning rate. Knowing that every variant still computes the same gradient and still steps downhill makes the landscape less mysterious.
+Adam combines both and is the usual first choice in PyTorch (`torch.optim.Adam`) and in TensorFlow. It usually needs fewer steps and is less sensitive to the learning rate. Every variant still calculates the same gradient and still steps downhill.
 
-Another practical tool is a **learning rate schedule**: start with a larger step and decay it as training progresses. `ReduceLROnPlateau`, cosine annealing, and step decay are common names.
+A **learning rate schedule** is another common tool: start with larger steps and make them smaller as training goes on.
 
-<Card title="Why Linear Regression Always Wins But Neural Networks Don't" icon="star">
-The loss surface for linear regression (and logistic regression) is **convex**: a single bowl-shaped minimum, no side valleys. Gradient descent is guaranteed to reach it from any starting point, given enough iterations and a small enough learning rate.
+<Card title="Why linear regression always arrives and a neural network may not" icon="star">
+The loss of linear regression (and of logistic regression) is **convex**: one bowl with one lowest point. Gradient descent reaches it from any start, if the learning rate is small enough.
 
-Neural networks are **non-convex**: their loss surfaces have many local minima and saddle points. You are not guaranteed to find the global minimum. In practice, overparameterized networks have many minima that all generalize well, so this is less catastrophic than it sounds, but it is why training neural networks feels like an art and training linear models feels like math.
+The loss of a neural network is **not convex**. It has many low points, and gradient descent stops in the one it reaches first, which need not be the lowest. In practice many of them give models that work about equally well.
 </Card>
 
-## The Complete Gradient Descent Lab
+## The complete gradient descent lab
 
 <InArticleAd />
 
 
-This final script puts everything together: gradient descent from scratch, learning rate sweep, convergence visualization, and comparison with scikit-learn's closed-form solution.
+This last program joins the parts: gradient descent written by hand, plots of its progress, and a comparison with the exact answer that scikit-learn calculates directly.
 
 ```python
 import numpy as np
@@ -659,7 +633,7 @@ def gradient_descent(x, y, lr=0.01, epochs=500):
     return w, b, losses, ws, bs
 
 # ── Run gradient descent ──
-w_gd, b_gd, losses, ws, bs = gradient_descent(x, y, lr=0.01, epochs=500)
+w_gd, b_gd, losses, ws, bs = gradient_descent(x, y, lr=0.01, epochs=3000)
 
 # ── Compare with scikit-learn (closed-form solution) ──
 lr_model = LinearRegression()
@@ -744,37 +718,39 @@ plt.savefig('gradient_descent_complete.png', dpi=100)
 plt.show()
 print("\nPlot saved as gradient_descent_complete.png")
 print("\nBottom-right: the contour plot shows the loss landscape.")
-print("The GD path (red) starts at a random point and follows the")
+print("The GD path (red) starts at w = 0, b = 0 and follows the")
 print("gradient downhill to the minimum (black X).")
 ```
 
-## Key Takeaways
+Gradient descent and the exact method agree to six decimal places: $w = 3.0350$ and $b = 6.9283$.
+
+## Key takeaways
 
 <InArticleAd />
 
 
 <Steps>
-1. **Gradient descent is the universal learning algorithm.** Predict, compute loss, compute gradient, update parameters. Every neural network, every logistic regression, every modern ML model uses this loop.
+1. **Gradient descent is one loop.** Predict, compute the loss, compute the gradient, update the parameters.
 
-2. **The loss function measures how wrong the model is.** MSE for regression. Cross-entropy for classification. The choice of loss function defines what "better" means.
+2. **The loss function measures how wrong the model is.** MSE for regression, cross-entropy for classification.
 
-3. **The gradient points uphill. You step downhill.** The update rule is: `parameters -= learning_rate * gradient`. That single line is the engine of all ML learning.
+3. **The gradient points uphill, and you step downhill.** The update rule is `parameters -= learning_rate * gradient`.
 
-4. **Learning rate is the most important hyperparameter.** Too large: divergence. Too small: convergence takes forever. Start with 0.01 and adjust.
+4. **The learning rate decides whether training works.** Too large, and the loss grows without end. Too small, and training takes far too long. Start with 0.01 and adjust.
 
-5. **Feature scaling matters for gradient descent.** Features on different scales create elongated loss landscapes where the gradient zig-zags inefficiently. Scale your features.
+5. **Scale the features.** Features on different scales make the loss steep in one direction and flat in another, and no single learning rate fits both.
 
-6. **Gradient descent and closed-form solutions give the same answer.** For linear regression, you could solve the normal equations directly. Gradient descent is what you use when the equations are too complex (neural networks, deep learning).
+6. **Gradient descent and the exact solution agree.** Gradient descent is for the models that have no exact solution.
 
-7. **Mini-batch is the practical choice.** It balances the stability of batch GD with the speed of stochastic GD. Batch sizes of 32 or 64 are common defaults.
+7. **Mini-batch is the practical choice.** It is faster than batch and steadier than SGD.
 </Steps>
 
-## What is Next
+## What is next
 
 <InArticleAd />
 
 
-You now understand the three pillars of ML: model fitting, evaluation, and learning. Next, in [Neural Networks from Scratch](./neural-networks-from-scratch), you will combine these ideas to build a neural network using only NumPy. The forward pass is just matrix multiplication. Backpropagation is just gradient descent applied to every layer. With what you already know, neural networks are a natural next step.
+Next, in [Neural Networks from Scratch](/education/ml-ai-fundamentals/neural-networks-from-scratch/), you build a neural network with NumPy alone. Its forward pass is matrix multiplication, and its training is gradient descent applied to every layer.
 
 <MlAiFundamentalsComments />
 

@@ -25,27 +25,23 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/MlAiFundamentalsComments.astro';
 
-Logistic regression and decision trees work well when the decision boundary is simple, but they cannot learn features like "this vibration pattern looks abnormal" or "this combination of sensor readings precedes a failure." Neural networks can, because stacking layers of weighted sums and nonlinear activations lets them build increasingly abstract representations of the input. The catch is that this power comes with complexity: backpropagation, vanishing gradients, and weight initialization all hide behind a single call to `model.fit()`. In this lesson you will build a neural network from scratch using nothing but NumPy, see every number that flows through it, and train it to solve problems that linear models cannot touch. #NeuralNetworks #Backpropagation #NumPy
+Two level switches on a tank should always agree, and an alarm should sound when exactly one of them is on. That rule is easy to say, and no straight-line model can learn it, whatever weights you give it. A neural network can, because it arranges simple units in layers, and each unit bends its result before it passes it on. The price is that more happens out of sight: one call to `model.fit()` hides the gradients and the choice of starting weights. In this lesson you build a neural network with NumPy alone, follow every number through it, and train it on exactly this problem. #NeuralNetworks #Backpropagation #NumPy
 
-## A Single Neuron
+## A single neuron
 
-Every neural network starts with this building block: a neuron takes inputs, multiplies each by a weight, adds a bias, and passes the result through an activation function.
+A neural network is made of one building block, the neuron. A neuron multiplies each of its inputs by a weight, adds a constant called the bias, and passes the sum through an **activation function**. A neuron with a sigmoid is logistic regression under another name.
+
+In the drawing, $x_1$ and $x_2$ are the inputs (for example the vibration and the temperature of a bearing), $w_1$ and $w_2$ are the weights, $b$ is the bias, $z$ is the weighted sum, and $f$ is the activation function.
 
 ```text
-  A Single Neuron
-  ──────────────────────────────────────────
-  Inputs       Weights      Sum + Bias    Activation
-  ──────       ───────      ──────────    ──────────
+  inputs    weights     weighted sum + bias       activation
   x1 ─── w1 ──┐
-               ├──► z = w1*x1 + w2*x2 + b ──► a = f(z)
+              ├──► z = w1*x1 + w2*x2 + b ──► a = f(z)
   x2 ─── w2 ──┘
-
-  f(z) is a nonlinear function (sigmoid, ReLU, etc.)
-  Without f(z), stacking layers would collapse to a single linear transform.
 ```
 
-<Card title="Why Nonlinearity Matters" icon="star">
-If every neuron were just a linear function (output = weights * inputs + bias), then stacking 100 layers would still produce a linear function. You could replace the entire network with a single layer. Nonlinear activation functions break this limitation and allow networks to learn curved decision boundaries, thresholds, and complex patterns.
+<Card title="Why nonlinearity matters" icon="star">
+If every neuron only formed its weighted sum, 100 layers would still calculate one weighted sum of the inputs, and a single layer could replace them. The activation function is **nonlinear**: its graph is not a straight line. That bend lets a network learn curved boundaries and thresholds.
 </Card>
 
 ```python
@@ -77,20 +73,20 @@ print(f"After sigmoid: {output:.4f}")
 
 ```text
 Inputs:     [0.5 0.8]
-Weights:    [0.3 -0.1]
+Weights:    [ 0.3 -0.1]
 Bias:       0.2
 Weighted sum: 0.2700
 After sigmoid: 0.5671
 ```
 
-The sigmoid squished the value 0.27 to 0.5671 (always between 0 and 1). That is the entire computation inside one neuron.
+The sigmoid pressed the sum 0.27 into 0.5671 (its output is always between 0 and 1). That is everything one neuron calculates.
 
-## Activation Functions
+## Activation functions
 
 <InArticleAd />
 
 
-Two activation functions cover most practical cases.
+Two activation functions cover most practical cases. The program also defines the derivative of each one, which is its slope at a given point, because training needs it later.
 
 ```python
 import numpy as np
@@ -125,25 +121,25 @@ print("ReLU deriv:     ", relu_derivative(z_values))
 ```text
 z values:        [-2. -1.  0.  1.  2.]
 Sigmoid:         [0.1192 0.2689 0.5    0.7311 0.8808]
-Sigmoid deriv:   [0.1050 0.1966 0.25   0.1966 0.1050]
+Sigmoid deriv:   [0.105  0.1966 0.25   0.1966 0.105 ]
 ReLU:            [0. 0. 0. 1. 2.]
 ReLU deriv:      [0. 0. 0. 1. 1.]
 ```
 
-**Sigmoid** squishes any value into (0, 1). Useful for output layers where you want a probability. **ReLU** (Rectified Linear Unit) passes positive values through and zeros out negatives. It is simple, fast, and avoids the vanishing gradient problem that plagues deep sigmoid networks.
+**Sigmoid** presses any value into the range from 0 to 1. Use it in an output layer when you want a probability. **ReLU** (rectified linear unit) passes a positive value unchanged and turns a negative value into 0.
 
-<Card title="Why ReLU Replaced Sigmoid in Hidden Layers" icon="star">
-Look at the sigmoid derivative row above: the largest value is 0.25, reached only at z = 0. For any large positive or negative input, the derivative collapses toward zero. During backpropagation, gradients are multiplied layer by layer. In a network with 10 sigmoid layers, the gradient at the first layer can be scaled by (0.25)^10, about 1 in a million. The early layers stop learning. This is the **vanishing gradient problem**.
+<Card title="Why ReLU replaced sigmoid in hidden layers" icon="star">
+Look at the row of sigmoid derivatives above. The largest value is 0.25, at $z = 0$. During training, the gradient is passed back from layer to layer, and at each sigmoid layer it is multiplied by this derivative. In a network with 10 sigmoid layers, the gradient that reaches the first layer can be scaled by $(0.25)^{10}$, about one millionth. The early layers almost stop learning. This is the **vanishing gradient problem**.
 
-ReLU's derivative is 1 for any positive input (and 0 otherwise), so it does not attenuate gradients as they flow backwards. This is the single biggest reason deep networks started working in the 2010s. Use ReLU in hidden layers by default; save sigmoid for output layers where you need a probability.
+The derivative of ReLU is 1 for any positive input and 0 otherwise, so it does not shrink the gradient on its way back. Use ReLU in hidden layers, and keep the sigmoid for an output layer that must give a probability.
 </Card>
 
-## The XOR Problem
+## The XOR problem
 
 <InArticleAd />
 
 
-XOR is the classic test: the output is 1 when exactly one input is 1, and 0 otherwise. A single layer (linear model) cannot solve this because the classes are not linearly separable. A two-layer network can.
+XOR ("exclusive or") is the classic test. The output is 1 when exactly one of the two inputs is 1, and 0 otherwise. It is the rule of the two level switches: alarm when they disagree. A model with a single layer cannot solve it, because the two classes are not **linearly separable**: no single straight line has the 1 answers on one side and the 0 answers on the other. A network with two layers can.
 
 ```text
   XOR Truth Table          Why Linear Models Fail
@@ -157,36 +153,36 @@ XOR is the classic test: the output is 1 when exactly one input is 1, and 0 othe
                                    0            1   x1
 ```
 
-### A Note on Weight Initialization
+### A note on weight initialization
 
-The code below initializes weights as small random Gaussians with a hand-picked scale. That is fine for this 2-layer toy, but if you try to stack 10 ReLU layers with the same scheme, signals either blow up or die out as they travel through the network. Modern frameworks use principled schemes that set the initial variance based on the fan-in and fan-out of each layer:
+The program below starts from small random weights, with a scale chosen by hand. That is good enough for two layers. With many layers it fails: the signals grow or die out on their way through. Libraries therefore set the size of the starting weights from the number of connections of each layer: **Xavier (Glorot) initialization** for tanh and sigmoid layers, and **He (Kaiming) initialization** for ReLU layers.
 
-- **Xavier / Glorot initialization**: pairs well with tanh and sigmoid.
-- **He / Kaiming initialization**: pairs well with ReLU and its variants.
+### Building a 2-layer network
 
-In PyTorch these are `torch.nn.init.xavier_uniform_()` and `torch.nn.init.kaiming_normal_()`. You do not need to memorize the formulas; you need to know that "I just pick small random numbers" stops working once the network is deep, and to use the initializer that matches your activation.
-
-### Building a 2-Layer Network
+The network has 2 inputs, a hidden layer of 4 neurons with ReLU, and 1 output neuron with a sigmoid. A layer is hidden when its values are neither inputs nor outputs.
 
 ```text
-  Network Architecture for XOR
-  ──────────────────────────────────────────
-  Input Layer     Hidden Layer (4 neurons)    Output Layer
-  (2 neurons)     ReLU activation             (1 neuron)
-                                              Sigmoid activation
+  input layer    hidden layer         output layer
+  (2 values)     (4 neurons, ReLU)    (1 neuron, sigmoid)
+
   x1 ────┬──── h1 ────┐
          ├──── h2 ────┤
          ├──── h3 ────├──── y_pred
          └──── h4 ────┘
   x2 ────┘
-
-  Shapes:
-  X:          (4, 2)     4 samples, 2 features
-  W_hidden:   (2, 4)     2 inputs to 4 hidden neurons
-  b_hidden:   (1, 4)     one bias per hidden neuron
-  W_output:   (4, 1)     4 hidden neurons to 1 output
-  b_output:   (1, 1)     one bias for output
 ```
+
+The program calculates all four XOR cases at once, so the data and the weights are tables of numbers (matrices). A shape of (4, 2) means 4 rows and 2 columns.
+
+| Name | Shape | Contents |
+|---|---|---|
+| `X` | (4, 2) | 4 samples with 2 inputs each |
+| `W1` | (2, 4) | weights from the 2 inputs to the 4 hidden neurons |
+| `b1` | (1, 4) | one bias for each hidden neuron |
+| `W2` | (4, 1) | weights from the 4 hidden neurons to the output |
+| `b2` | (1, 1) | one bias for the output |
+
+The loop is gradient descent: a forward pass calculates the predictions, a backward pass calculates the gradient for every weight (**backpropagation**, explained after the program), and the update follows.
 
 ```python
 import numpy as np
@@ -213,10 +209,10 @@ X = np.array([[0, 0],
               [1, 1]])
 y = np.array([[0], [1], [1], [0]])
 
-# Initialize weights (small random values)
-W1 = np.random.randn(2, 4) * 0.5   # input to hidden
+# Initialize weights (random values)
+W1 = np.random.randn(2, 4) * 1.0   # input to hidden
 b1 = np.zeros((1, 4))
-W2 = np.random.randn(4, 1) * 0.5   # hidden to output
+W2 = np.random.randn(4, 1) * 1.0   # hidden to output
 b2 = np.zeros((1, 1))
 
 learning_rate = 0.5
@@ -274,68 +270,71 @@ print("Final weights W2:\n", np.round(W2, 4))
 
 ```text
 Initial weights W1:
- [[ 0.2484  0.4607 -0.1539  0.4004]
-  [ 0.1218 -0.3417 -0.1758 -0.0387]]
+ [[ 0.4967 -0.1383  0.6477  1.523 ]
+ [-0.2342 -0.2341  1.5792  0.7674]]
 Initial weights W2:
- [[ 0.3869]
-  [-0.0297]
-  [-0.1047]
-  [-0.0822]]
-Epoch     0 | Loss: 0.273703
-Epoch  2000 | Loss: 0.002104
-Epoch  4000 | Loss: 0.000490
-Epoch  6000 | Loss: 0.000222
-Epoch  8000 | Loss: 0.000130
-Epoch 10000 | Loss: 0.000087
+ [[-0.4695]
+ [ 0.5426]
+ [-0.4634]
+ [-0.4657]]
+Epoch     0 | Loss: 0.355412
+Epoch  2000 | Loss: 0.000854
+Epoch  4000 | Loss: 0.000352
+Epoch  6000 | Loss: 0.000217
+Epoch  8000 | Loss: 0.000155
+Epoch 10000 | Loss: 0.000120
 
 Final predictions:
-  Input: [0 0] -> Predicted: 0.0078 | Target: 0
-  Input: [0 1] -> Predicted: 0.9901 | Target: 1
-  Input: [1 0] -> Predicted: 0.9904 | Target: 1
-  Input: [1 1] -> Predicted: 0.0123 | Target: 0
+  Input: [0 0] -> Predicted: 0.0176 | Target: 0
+  Input: [0 1] -> Predicted: 0.9921 | Target: 1
+  Input: [1 0] -> Predicted: 0.9921 | Target: 1
+  Input: [1 1] -> Predicted: 0.0066 | Target: 0
 ```
 
-The network learned XOR. A linear model would be stuck at ~50% accuracy on this problem forever.
+The program also prints the final weights. A network this small does not learn XOR from every starting point. With other seeds (3, 4 or 9, for example), or with the same seed and half the weight scale, some ReLU units start with zero output for every input, receive no gradient, and the loss stays near 0.125, 0.167 or 0.25. If that happens, change the seed or use more hidden neurons.
 
-## Understanding Backpropagation
+The network has learned XOR: its four outputs are within 0.02 of the targets. A straight-line model cannot get all four cases right, whatever its weights.
+
+## Understanding backpropagation
 
 <InArticleAd />
 
 
-Backpropagation is the chain rule applied backwards through the network. Each layer computes: "How much did my weights contribute to the total error?"
+Backpropagation answers one question for every weight: if this weight rises a little, how does the loss change? It starts from the error at the output and works backwards, layer by layer, and gives each weight its share of the error. In calculus this is the chain rule.
 
 <Steps>
 
-1. **Forward pass**: compute predictions layer by layer.
+1. **Forward pass**: calculate the predictions, layer by layer.
 
-2. **Compute loss**: how far off are the predictions? (MSE in our case.)
+2. **Loss**: measure how far the predictions are from the targets (the MSE here).
 
-3. **Output layer gradient**: compute how the loss changes with respect to the output weights. This uses the derivative of the sigmoid and the derivative of MSE.
+3. **Gradient of the output layer**: find how the loss changes with each output weight, from the derivative of the MSE and the derivative of the sigmoid.
 
-4. **Hidden layer gradient**: propagate the error backward through the output weights and multiply by the derivative of ReLU. This tells each hidden neuron how much it contributed to the error.
+4. **Gradient of the hidden layer**: pass the error back through the output weights and multiply by the derivative of ReLU. Each hidden neuron then has its share of the error.
 
-5. **Update weights**: subtract learning_rate * gradient from each weight. Repeat.
+5. **Update**: subtract the learning rate times the gradient from every weight, and repeat.
 
 </Steps>
 
 ```text
-  Backpropagation Flow
-  ──────────────────────────────────────────
-  Forward:  X ──► z1 ──► a1 ──► z2 ──► a2 ──► Loss
-                  W1      ReLU   W2     Sigmoid  MSE
+  forward:   X ──► z1 ──► a1 ──► z2 ──► a2 ──► loss
+                   W1     ReLU   W2     sigmoid  MSE
 
-  Backward: X ◄── dW1 ◄── delta1 ◄── dW2 ◄── delta2 ◄── dLoss
-            Each layer asks:
-            "How much did I contribute to the error?"
-            Then adjusts weights to reduce that contribution.
+  backward:  dW1 ◄── delta1 ◄── dW2 ◄── delta2 ◄── loss
 ```
 
-## Classifying Sensor Readings (3 Classes)
+In the program, `delta2` is the error at the output and `delta1` is the share passed back to the hidden layer. `dW2` and `dW1` are the gradients for the two sets of weights.
+
+## Classifying sensor readings (3 classes)
 
 <InArticleAd />
 
 
-Now a more practical problem. Given temperature and vibration readings from an industrial sensor, classify each reading as normal (0), warning (1), or critical (2).
+Now a more practical problem. From the temperature and the vibration of a machine, decide if a reading is normal (0), warning (1) or critical (2). Three things are new:
+
+- **One-hot labels.** Each label is three numbers with a single 1: normal is (1, 0, 0), warning is (0, 1, 0), critical is (0, 0, 1).
+- **Softmax.** The output layer turns its three raw scores into three probabilities that add to 1. The highest is the answer.
+- **Cross-entropy loss.** The log loss of logistic regression, extended to three classes.
 
 ```python
 import numpy as np
@@ -460,62 +459,60 @@ for i in range(10):
 **Expected output (approximate):**
 
 ```text
-Epoch    0 | Loss: 1.1023 | Train Acc: 33.33%
-Epoch  500 | Loss: 0.3541 | Train Acc: 87.50%
-Epoch 1000 | Loss: 0.1892 | Train Acc: 93.33%
-Epoch 1500 | Loss: 0.1284 | Train Acc: 95.83%
-Epoch 2000 | Loss: 0.0974 | Train Acc: 96.67%
-Epoch 2500 | Loss: 0.0785 | Train Acc: 97.08%
+Epoch    0 | Loss: 1.0157 | Train Acc: 47.50%
+Epoch  500 | Loss: 0.0653 | Train Acc: 97.50%
+Epoch 1000 | Loss: 0.0501 | Train Acc: 97.92%
+Epoch 1500 | Loss: 0.0453 | Train Acc: 97.92%
+Epoch 2000 | Loss: 0.0430 | Train Acc: 97.92%
+Epoch 2500 | Loss: 0.0417 | Train Acc: 97.92%
 
-Test Accuracy: 95.00%
+Test Accuracy: 96.67%
 
 Sample predictions (first 10 test samples):
-  Predicted: Warning  (88.42%) | Actual: Warning  | correct
-  Predicted: Critical (97.13%) | Actual: Critical | correct
-  Predicted: Normal   (99.01%) | Actual: Normal   | correct
+  Predicted: Critical (100.00%) | Actual: Critical | correct
+  Predicted: Critical (100.00%) | Actual: Critical | correct
+  Predicted: Critical (97.52%) | Actual: Critical | correct
+  Predicted: Warning  (99.86%) | Actual: Warning  | correct
   ...
 ```
 
-The network architecture uses softmax in the output layer for multi-class classification. Softmax converts raw scores into probabilities that sum to 1 across all classes.
+The network gets 58 of the 60 test readings right. Its layout is the XOR network made wider:
 
 ```text
-  3-Class Sensor Classification Network
-  ──────────────────────────────────────────
-  Input (2)       Hidden (16)        Output (3)
-  ─────────       ───────────        ──────────
-  Temperature ──┬── h1              ┌─ Normal   (softmax)
+  input (2)       hidden (16)        output (3)
+
+  temperature ──┬── h1              ┌─ normal
                 ├── h2              │
-                ├── h3  ────────────├─ Warning  (softmax)
+                ├── h3  ────────────├─ warning
                 ├── ...             │
-                └── h16             └─ Critical (softmax)
-  Vibration ────┘
-                    ReLU               Probabilities sum to 1.0
+                └── h16             └─ critical
+  vibration ────┘
+                    ReLU               softmax: the three
+                                       probabilities add to 1
 ```
 
-## Key Takeaways
+## Key takeaways
 
 <InArticleAd />
 
 
 <CardGrid>
-<Card title="A Neuron" icon="star">
-Weighted sum + bias + activation function. That is the entire computation. Everything else is just organizing neurons into layers.
+<Card title="A neuron" icon="star">
+A weighted sum, a bias and an activation function. A network is many neurons arranged in layers.
 </Card>
-<Card title="Forward Pass" icon="right-arrow">
-Input flows through each layer: multiply by weights, add bias, apply activation. The output of one layer is the input to the next.
+<Card title="Forward pass" icon="right-arrow">
+In each layer: multiply by the weights, add the bias, apply the activation function. The output of one layer is the input of the next.
 </Card>
 <Card title="Backpropagation" icon="left-arrow">
-The chain rule applied backwards. Each layer computes its gradient, which tells us how to adjust its weights to reduce the loss.
+The chain rule, applied from the output back to the input. It gives the gradient of the loss for every weight.
 </Card>
-<Card title="What Frameworks Do" icon="setting">
-TensorFlow and PyTorch do exactly what you just coded, but optimized for GPUs, with automatic differentiation, and scaled to millions of parameters. Now you know what happens inside.
+<Card title="What frameworks do" icon="setting">
+Libraries such as PyTorch and TensorFlow do what you coded here. They add automatic gradients, graphics processors for speed, and ready-made layers.
 </Card>
-<Card title="Regularizers You Will Meet Next" icon="information">
-Real networks fight overfitting with two standard tools you did not need here. **Dropout** randomly zeros a fraction of activations at each training step, forcing the network to not rely on any single unit. **Batch normalization** rescales activations using running mini-batch statistics, stabilizing training and allowing higher learning rates. Both are one-liners in PyTorch and Keras, and both live inside frameworks rather than in the raw math.
+<Card title="Regularizers you will meet next" icon="information">
+Larger networks overfit, and two tools reduce it. **Dropout** sets a random part of the hidden values to zero at each training step, so the network cannot depend on any single neuron. **Batch normalization** rescales the values between layers, which makes training steadier.
 </Card>
 </CardGrid>
-
-Now you know what TensorFlow does internally. It is this: matrix multiplications, nonlinear activations, loss computation, and gradient updates, optimized and scaled to billions of parameters.
 
 <MlAiFundamentalsComments />
 

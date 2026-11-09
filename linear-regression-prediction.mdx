@@ -27,22 +27,30 @@ import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/
 
 import PodcastEmbed from '../../../../components/PodcastEmbed.astro';
 
-In the previous lesson, you fitted polynomials with `np.polyfit`. That works for one input variable. Real engineering problems have multiple inputs: outdoor temperature, humidity, time of day, building insulation rating, and so on. Linear regression handles this naturally, and scikit-learn makes the pipeline clean and repeatable. In this lesson you will build a complete regression system for predicting indoor temperature from sensor readings, evaluate it with proper metrics, and learn to spot when the model is missing something important. #LinearRegression #ScikitLearn #SensorData
+A building that is cooled or heated one degree more than it needs wastes energy every hour, and a controller can act early only if it knows what the indoor temperature is going to be. One input is rarely enough to predict it. Linear regression is a model for several inputs: it multiplies each input by its own adjustable number and adds the results. In this lesson you build one with scikit-learn, measure how good it is, and learn to see from its errors when it is missing something. #LinearRegression #ScikitLearn #SensorData
 
 <PodcastEmbed src="https://open.spotify.com/episode/3UyIV8EnVRtJN5miOmpCaG?si=rQhxrIzBQ46zq0FKugXz1A" />
 
-## The Problem
+## The problem
 
-You have a set of environmental sensors measuring outdoor temperature, relative humidity, and time of day. You want to predict the indoor temperature of a building. This is a real problem in building automation, HVAC control, and energy management.
+You have sensors for the outdoor temperature, the relative humidity and the time of day, and you want to predict the indoor temperature of a building. Heating and cooling control and energy management need this prediction.
 
-We will generate a synthetic dataset that mimics realistic sensor behavior, then build a model to predict indoor temperature from the measurements.
+The three inputs are called the **features**, and the indoor temperature is the **target**. The model is a straight-line rule:
 
-## Step 1: Generate a Realistic Sensor Dataset
+$$
+\hat{y} = w_1 x_1 + w_2 x_2 + w_3 x_3 + b
+$$
+
+Here $\hat{y}$ is the predicted indoor temperature and $x_1$, $x_2$, $x_3$ are the features. The weights $w_1$, $w_2$, $w_3$ and the intercept $b$ are the adjustable numbers. Fitting finds the values that give the smallest squared misses on the examples.
+
+The data is synthetic. The programs make it, so you know what the model should find.
+
+## Step 1: Generate a realistic sensor dataset
 
 <InArticleAd />
 
 
-Real sensor data is messy. Our synthetic data includes the physical relationships you would expect (indoor temperature tracks outdoor temperature, varies with time of day) plus noise from sensor measurement error.
+The synthetic data has the relationships you would expect (the indoor temperature follows the outdoor temperature, and rises and falls through the day), with random noise in the place of sensor error.
 
 ```python
 import numpy as np
@@ -108,17 +116,15 @@ plt.show()
 print("\nPlot saved as sensor_data_exploration.png")
 ```
 
-## Step 2: Feature Scaling
+## Step 2: Feature scaling
 
 <InArticleAd />
 
 
-Linear regression itself does not require feature scaling for correctness. The math works either way. But scaling matters for two practical reasons:
+The features have different units and ranges. **Feature scaling** brings them to one scale: `StandardScaler` subtracts the mean of each feature and divides by its standard deviation (its typical distance from the mean). Linear regression predicts the same with or without scaling, but scaling is worth doing:
 
-1. **Coefficient interpretation.** After scaling, the coefficients tell you which feature has the most influence. Without scaling, a coefficient is entangled with the feature's units.
-2. **Numerical stability.** Features with very different scales (humidity in 20 to 95 vs hour in 0 to 23) can cause numerical issues in some algorithms. Gradient descent (covered later) is especially sensitive to this.
-
-scikit-learn's `StandardScaler` subtracts the mean and divides by the standard deviation, so every feature ends up with mean 0 and standard deviation 1.
+1. **The weights can be compared.** Each weight then says how much the prediction changes when its feature moves by one standard deviation.
+2. **Other methods need it.** Gradient descent, covered later, works badly on features with very different scales.
 
 ```python
 import numpy as np
@@ -151,20 +157,20 @@ print(f"  Feature means:  {X_scaled.mean(axis=0).round(6)}")
 print(f"  Feature stds:   {X_scaled.std(axis=0).round(6)}")
 ```
 
-<Card title="Important: Fit on Training Data Only" icon="warning">
-When you scale features, fit the scaler on the training data only. Then use the same scaler to transform the test data. If you fit on the entire dataset, information from the test set leaks into the training process. This is called **data leakage** and it produces overly optimistic evaluation results.
+<Card title="Fit the scaler on the training data only" icon="warning">
+Calculate the mean and the standard deviation from the training data only, and use them to scale the test data too. Otherwise information about the test set enters the training (**data leakage**), and the model looks better in the test than it will be in use.
 </Card>
 
-<Card title="Watch Out for Multicollinearity" icon="warning">
-Notice that outdoor temperature and humidity are correlated (our synthetic data uses `humidity = 60 - 0.5 * outdoor_temp + noise`). When two or more features move together, linear regression cannot cleanly attribute the output to one versus the other. The fit is still accurate, but the **individual coefficients become unstable**: they can swap signs if you refit on slightly different data, and their magnitudes stop reflecting real physical influence.
-
-In engineering datasets this is the norm, not the exception. Sensors that measure related phenomena (temp and pressure, vibration axes, multiple supply rails) are often highly correlated. Quick diagnostics: compute the correlation matrix with `np.corrcoef(X.T)`, or the Variance Inflation Factor (VIF) from `statsmodels`. If two features have correlation above about 0.9, consider dropping one, combining them (principal components), or switching to a regularized model like Ridge regression, covered later in the course.
+<Card title="Watch out for features that move together" icon="warning">
+In this data the humidity is linked to the outdoor temperature. When two features move together, the fit cannot tell which of them changes the target. The predictions stay good, but the **single weights are not stable**: they can change size and even sign on slightly different data (multicollinearity). Check with `np.corrcoef(X.T)`. If two features have a correlation above about 0.9, keep only one.
 </Card>
 
-## Step 3: Train/Test Split and Model Training
+## Step 3: Train/test split and model training
 
 <InArticleAd />
 
+
+The next program splits the 200 samples at random into 140 for training and 60 for testing, fits the scaler and the model on the training samples, and predicts the test samples.
 
 ```python
 import numpy as np
@@ -218,33 +224,18 @@ for actual, predicted in zip(y_test[:5], y_test_pred[:5]):
     print(f"  {actual:<10.2f} {predicted:<10.2f} {actual - predicted:<10.2f}")
 ```
 
-## Step 4: Evaluation Metrics
+The fitted weights are +2.04 for outdoor temperature, −0.29 for humidity and −0.03 for hour. One standard deviation more outdoors (about 5.5 °C) raises the prediction by 2.04 °C. The weight for hour is almost zero: the data has a clear daily cycle, and the model has found none.
+
+## Step 4: Evaluation metrics
 
 <InArticleAd />
 
 
-Three metrics give you different views of model quality.
+Three measures describe the predictions. Each starts from the misses, also called errors or **residuals**: the actual value minus the predicted value.
 
-```text
-  Regression Evaluation Metrics
-  ──────────────────────────────────────────────
-
-  MSE (Mean Squared Error)
-    = average of (actual - predicted)^2
-    Penalizes large errors heavily (squaring).
-    Units: squared units of the target.
-
-  MAE (Mean Absolute Error)
-    = average of |actual - predicted|
-    Treats all errors equally.
-    Units: same as the target.
-
-  R-squared (Coefficient of Determination)
-    = 1 - (sum of squared residuals) / (total variance)
-    Ranges from 0 to 1 (can be negative for bad models).
-    1.0 = perfect predictions.
-    0.0 = model is no better than predicting the mean.
-```
+- **MSE**, the mean squared error: the average of the squared misses. Squaring makes large misses count most. Its unit is the square of the target's unit, so its square root, the **RMSE**, is the number to report.
+- **MAE**, the mean absolute error: the average size of the misses, in the unit of the target.
+- **R-squared** ($R^2$): 1 minus the squared misses of the model, divided by the squared misses of the simplest guess, which is to give the mean every time. It is 1 for perfect predictions, 0 for a model no better than the mean, and negative for a worse one.
 
 ```python
 import numpy as np
@@ -294,7 +285,7 @@ print(f"{'RMSE':<20} {np.sqrt(mean_squared_error(y_train, y_train_pred)):<12.4f}
 print(f"\nInterpretation:")
 test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
 test_r2 = r2_score(y_test, y_test_pred)
-print(f"  RMSE of {test_rmse:.2f} C means predictions are off by about {test_rmse:.1f} degrees on average.")
+print(f"  RMSE of {test_rmse:.2f} C means a typical prediction error is about {test_rmse:.1f} degrees (large errors count more).")
 print(f"  R-squared of {test_r2:.3f} means the model explains {test_r2 * 100:.1f}% of the variance in indoor temperature.")
 
 # ── Plot: Predicted vs Actual ──
@@ -326,20 +317,18 @@ plt.show()
 print("\nPlot saved as regression_evaluation.png")
 ```
 
-## Step 5: Residual Analysis
+On the 60 test samples the RMSE is 1.96 °C, the MAE is 1.59 °C and $R^2$ is 0.616. The noise put into the data is only 1 °C, so the model is still missing something.
+
+## Step 5: Residual analysis
 
 <InArticleAd />
 
 
-Metrics tell you how wrong the model is. Residual analysis tells you _why_. If the errors show a pattern, the model is missing something systematic.
+The measures say how large the errors are. Residual analysis says _why_. Plot the residuals against the predicted value and against each feature. A shapeless cloud around zero means the model has found what there is to find. A pattern means it is missing something:
 
-Residual plots are really a quick check on the three classical linear-regression assumptions:
-
-- **Linearity.** The relationship between features and target is linear. Violation shows up as a curve in the residuals-vs-predicted plot.
-- **Independence and zero mean.** Residuals should scatter around zero with no trend across feature values or time. A drift, cycle, or step in residuals-vs-feature means the model is missing a variable or a nonlinear term.
-- **Homoscedasticity.** The residual spread should be roughly constant. A fan shape (spread growing with the predicted value) means the error variance depends on the input; predictions on large values are less trustworthy than on small ones.
-
-You do not need to check these formally every time, but you should know what each plot is diagnosing.
+- **A curve.** The real relationship is not a straight line.
+- **A cycle or a step** against one feature. The model needs that feature in another form.
+- **A fan.** The spread grows with the predicted value, so large predictions are less certain than small ones.
 
 ```python
 import numpy as np
@@ -413,14 +402,26 @@ print("Solution: add sin(hour) and cos(hour) as features (next section).")
 print("\nPlot saved as residual_analysis.png")
 ```
 
-## Step 6: Feature Engineering Fixes the Residuals
+Here the plot against hour shows a wave. In blocks of three hours, the model is about 2 °C too high at night and 2 °C too low around midday:
+
+```text
+  mean residual, °C
+   +2 │             ●   ●
+   +1 │                     ●
+    0 ├─────●───●───────────────────────
+   -1 │                         ●
+   -2 │ ●                           ●
+      └─────────────────────────────────►
+        1   4   7   10  13  16  19  22
+                  hour of day
+```
+
+## Step 6: Feature engineering fixes the residuals
 
 <InArticleAd />
 
 
-The residual plot against hour likely shows a sinusoidal pattern. The model is linear, and the daily cycle is a sine wave. A linear model cannot capture a nonlinear relationship unless you give it the right features.
-
-The fix: instead of using `hour` directly, create `sin(2*pi*hour/24)` and `cos(2*pi*hour/24)` as features. This is **feature engineering**, and it is often more effective than switching to a more complex model.
+A straight-line rule cannot follow a wave: the building is warmest near midday, and hour 23 is next to hour 0. So give the model the hour in a form it can use. Replace `hour` with two features, `sin(2*pi*hour/24)` and `cos(2*pi*hour/24)`. A weighted sum of the two makes a daily wave with its peak at any hour. Making better inputs from the raw ones is called **feature engineering**.
 
 ```python
 import numpy as np
@@ -503,69 +504,60 @@ print("has sin(2*pi*hour/24). The axes are not directly comparable; what matters
 print("is the residual pattern (left) versus the lack of it (right).")
 ```
 
+The test RMSE falls from 1.96 °C to 1.33 °C, and $R^2$ rises from 0.616 to 0.824. The wave is gone. What remains is close to the 1 °C of noise, which no model can remove.
+
 <Card title="Connect to Applied Math" icon="star">
-Encoding cyclic variables as sine and cosine pairs is the same idea as Fourier decomposition from the Applied Mathematics course. You are projecting a periodic signal onto its fundamental frequency components. The linear model can then learn the amplitude and phase through its coefficients.
+A sine and cosine pair for a cyclic variable is the idea of Fourier analysis from the Applied Mathematics course. The two fitted weights set the height of the daily wave and the hour of its peak.
 </Card>
 
-## The Complete Pipeline
+## The complete pipeline
 
 <InArticleAd />
 
 
-Here is the full pipeline in one script, from data generation to final evaluation.
+The whole method as one flow, from raw data to a model you can use:
 
 ```text
-  The ML Regression Pipeline
-  ──────────────────────────────────────────────
-
-  Raw Data
-    │
-    ├── Feature Engineering
-    │     (encode cyclic variables, add derived features)
-    │
-    ├── Train/Test Split
-    │     (70/30 or 80/20, random shuffle)
-    │
-    ├── Feature Scaling
-    │     (fit scaler on train ONLY, transform both)
-    │
-    ├── Model Training
-    │     (LinearRegression.fit on training data)
-    │
-    ├── Prediction
-    │     (model.predict on test data)
-    │
-    ├── Evaluation
-    │     (MSE, MAE, R-squared on test set)
-    │
-    └── Residual Analysis
-          (are errors random or patterned?)
-          If patterned: go back to Feature Engineering
+  raw data
+     │
+     ▼
+  ┌───────────────────────────────┐
+  │ 1 make features (sin, cos)    │◄────────┐
+  │ 2 split: training / test      │         │
+  │ 3 scale (fit on training)     │         │ pattern
+  │ 4 fit the model on training   │         │ found
+  │ 5 predict the test set        │         │
+  │ 6 measure: RMSE, MAE, R²      │         │
+  │ 7 plot the residuals          │─────────┘
+  └───────────────────────────────┘
+     │ no pattern
+     ▼
+  the model is ready to use
 ```
 
-## Key Takeaways
+## Key takeaways
 
 <InArticleAd />
 
 
 <Steps>
-1. **Multiple features, same idea.** Linear regression with multiple inputs is the same least-squares fitting you know, extended to higher dimensions. scikit-learn handles the linear algebra.
+1. **Several inputs, the same idea.** Linear regression is line fitting with one weight for each feature.
 
-2. **Scale features, fit on training data only.** StandardScaler ensures all features contribute proportionally. Fitting on the full dataset is data leakage.
+2. **Scale the features, and fit the scaler on the training data only.** Then the weights can be compared, and the test set stays out of the training.
 
-3. **RMSE has the same units as your target.** An RMSE of 1.5 C means your predictions are off by about 1.5 degrees on average. MSE squares the units, so interpret RMSE instead.
+3. **RMSE has the units of the target.** It is a typical miss, with large misses counting more. The MAE is the plain average miss and is never larger.
 
-4. **R-squared tells you the fraction of variance explained.** An R-squared of 0.85 means the model captures 85% of the variation in the target. The remaining 15% is noise or missing features.
+4. **R-squared is the share of the variation that the model explains.** At 0 the model is no better than the mean.
 
-5. **Residual analysis reveals what the model misses.** If residuals show a pattern, the model is systematically wrong. Feature engineering (not a fancier algorithm) is usually the fix.
+5. **Residuals show what the model misses.** A pattern usually needs a better feature, not a more complicated algorithm.
 </Steps>
 
-## What is Next
+## What is next
 
 <InArticleAd />
 
 
-Next, in [Classification: Yes or No Decisions](./classification-yes-or-no), you will move from predicting continuous values to making binary decisions. Instead of "what temperature?" the question becomes "is this sensor board defective?" The math changes only slightly, but the evaluation metrics change completely.
+Next, in [Classification: Yes or No Decisions](/education/ml-ai-fundamentals/classification-yes-or-no/), the question changes from "what temperature?" to "is this sensor board defective?" The model changes only a little. The way you judge it changes completely.
 
 <MlAiFundamentalsComments />
 

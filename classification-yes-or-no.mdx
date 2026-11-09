@@ -27,20 +27,20 @@ import MlAiFundamentalsComments from '../../../../components/ml-ai-fundamentals/
 
 import PodcastEmbed from '../../../../components/PodcastEmbed.astro';
 
-Regression predicts a number. Classification predicts a category. In engineering, classification problems are everywhere: is this board defective or good? Is this vibration pattern normal or faulty? Should this system trigger an alarm or stay silent? The model is still fitting a function to data, but instead of outputting a continuous value, it outputs a probability that gets converted to a yes/no decision. The evaluation changes completely, because in classification, not all mistakes are equally costly. #Classification #LogisticRegression #QualityControl
+A failing bearing that is passed as healthy stops a production line. A healthy bearing that is flagged as failing costs a technician ten minutes. Both are mistakes, and they do not cost the same. Classification gives yes or no answers of this kind: is this board defective, should this alarm sound? The model is still a rule fitted to examples. Its output is a probability, and a threshold turns the probability into a decision. In this lesson you build a classifier for defective sensor boards, and learn to judge it by the mistakes it makes and not by how often it is right. #Classification #LogisticRegression #QualityControl
 
 <PodcastEmbed src="https://open.spotify.com/episode/3Z5Z0xkxzG4S4WtvvFcgL2?si=-B_D8DURRdelX-Q-UntMjA" />
 
-## The Problem: Defective Sensor Boards
+## The problem: defective sensor boards
 
-You run a production line that tests sensor boards. Each board goes through an automated test station that records five electrical measurements: output voltage, supply current, input resistance, signal-to-noise ratio, and response time. A small percentage of boards are defective. You want a model that flags defectives automatically.
+You run a production line that tests sensor boards. A test station records five electrical measurements for each board: output voltage, supply current, input resistance, signal-to-noise ratio, and response time. A small share of the boards is defective. You want a model that flags the defective ones from the five measurements.
 
-## Step 1: Generate the Dataset
+## Step 1: Generate the dataset
 
 <InArticleAd />
 
 
-Real defect data is imbalanced. Most boards are good. We will simulate a 95% good / 5% defective split, which is realistic for a well-tuned production line.
+Real defect data is imbalanced: most boards are good. The program simulates 2,000 boards, 95% good and 5% defective.
 
 ```python
 import numpy as np
@@ -48,7 +48,7 @@ import matplotlib.pyplot as plt
 
 np.random.seed(42)
 
-n_samples = 500
+n_samples = 2000
 defect_rate = 0.05
 
 # Labels: 0 = good, 1 = defective
@@ -64,11 +64,11 @@ good_snr = np.random.normal(45.0, 2.0, n_good)           # 45dB nominal
 good_response = np.random.normal(2.0, 0.2, n_good)       # 2ms nominal
 
 # Defective boards: shifted distributions (not all measurements are off)
-def_voltage = np.random.normal(3.1, 0.15, n_defective)
-def_current = np.random.normal(18.0, 3.0, n_defective)
-def_resistance = np.random.normal(11.5, 1.0, n_defective)
-def_snr = np.random.normal(38.0, 5.0, n_defective)
-def_response = np.random.normal(3.5, 0.8, n_defective)
+def_voltage = np.random.normal(3.22, 0.1, n_defective)
+def_current = np.random.normal(17.0, 2.5, n_defective)
+def_resistance = np.random.normal(10.8, 0.8, n_defective)
+def_snr = np.random.normal(41.0, 4.0, n_defective)
+def_response = np.random.normal(2.7, 0.6, n_defective)
 
 # Combine
 voltage = np.concatenate([good_voltage, def_voltage])
@@ -119,59 +119,51 @@ plt.show()
 print("\nPlot saved as defect_data_scatter.png")
 ```
 
-Notice that the defective boards overlap with the good boards in some measurements. No single measurement perfectly separates them. The classifier must combine all five measurements to make a decision.
+The defective boards overlap with the good boards in every measurement. No single measurement separates them, so the classifier must combine all five.
 
-## Step 2: Logistic Regression
+## Step 2: Logistic regression
 
 <InArticleAd />
 
 
-Linear regression outputs any real number. For classification, you need a number between 0 and 1, which you can interpret as a probability. Logistic regression does this by passing the linear output through a **sigmoid function**.
+Linear regression gives any number as its output. For a yes or no question you want a number between 0 and 1 that you can read as a probability. **Logistic regression** makes it in two steps. First it forms the same weighted sum of the measurements as linear regression, with a weight for each measurement and an intercept. Call the sum $z$. Then it passes $z$ through the **sigmoid function**, which presses any number into the range from 0 to 1:
+
+$$
+p = \frac{1}{1 + e^{-z}}
+$$
+
+Here $p$ is the probability that the board is defective, and $e$ is the constant 2.718. A large negative $z$ gives a $p$ near 0, $z = 0$ gives 0.5, and a large positive $z$ gives a $p$ near 1.
 
 ```text
-  From Linear to Logistic
-  ──────────────────────────────────────────────
-
-  Linear regression:
-    y = w1*x1 + w2*x2 + ... + b
-    Output: any real number
-
-  Logistic regression:
-    z = w1*x1 + w2*x2 + ... + b    (same linear combination)
-    p = 1 / (1 + exp(-z))           (sigmoid squashes to 0..1)
-    Output: probability between 0 and 1
-
-  Decision rule:
-    if p >= threshold (default 0.5):  predict "defective"
-    if p <  threshold:                predict "good"
-
-  The sigmoid function:
-       1.0 |                    ___________
-           |                   /
-       0.5 |                  /
-           |                 /
-       0.0 |________________/
-           ─────────────────────────────────
-                            0
-                         z (linear output)
+    p
+  1.0 │                    ___________
+      │                   /
+  0.5 │                  /
+      │                 /
+  0.0 │________________/
+      └─────────────────────────────────►
+                        0
+                z, the weighted sum
 ```
 
-The intuition: logistic regression fits an S-curve instead of a line. The S-curve naturally maps any input to a probability.
+If $p$ is at or above a **threshold**, the model says "defective". Below it, the model says "good". The usual threshold is 0.5.
 
-<Card title="What Does Logistic Regression Actually Minimize?" icon="star">
-Linear regression minimizes mean squared error. Logistic regression minimizes a different quantity called the **log loss** (also known as **binary cross-entropy**):
+<Card title="What does logistic regression minimize?" icon="star">
+Linear regression is fitted by making the mean squared error small. Logistic regression uses the **log loss** (also called **binary cross-entropy**):
 
 ```text
   log_loss = -(1/n) * sum( y*log(p) + (1 - y)*log(1 - p) )
 ```
 
-Intuitively, the model is heavily penalized when it is both **confident and wrong** (predicting p = 0.01 when y = 1 costs a lot). It is lightly penalized when it is confident and right. You will see `log_loss` as a metric name in scikit-learn and as `BCELoss` / `CrossEntropyLoss` in PyTorch; it is the same objective.
+Here `y` is the true label (1 for defective, 0 for good) and `p` is the predicted probability. The loss is small for a high probability on the right answer, and very large when the model is **confident and wrong**. It is `log_loss` in scikit-learn.
 </Card>
 
-## Step 3: Train and Evaluate
+## Step 3: Train and evaluate
 
 <InArticleAd />
 
+
+The program splits the boards into 1,400 for training and 600 for testing. The option `stratify=labels` keeps the share of defective boards the same in both parts.
 
 ```python
 import numpy as np
@@ -186,7 +178,7 @@ from sklearn.metrics import (confusion_matrix, classification_report,
 np.random.seed(42)
 
 # ── Generate dataset (same as above) ──
-n_samples = 500
+n_samples = 2000
 n_defective = int(n_samples * 0.05)
 n_good = n_samples - n_defective
 labels = np.array([0] * n_good + [1] * n_defective)
@@ -199,11 +191,11 @@ good_data = np.column_stack([
     np.random.normal(2.0, 0.2, n_good),
 ])
 def_data = np.column_stack([
-    np.random.normal(3.1, 0.15, n_defective),
-    np.random.normal(18.0, 3.0, n_defective),
-    np.random.normal(11.5, 1.0, n_defective),
-    np.random.normal(38.0, 5.0, n_defective),
-    np.random.normal(3.5, 0.8, n_defective),
+    np.random.normal(3.22, 0.1, n_defective),
+    np.random.normal(17.0, 2.5, n_defective),
+    np.random.normal(10.8, 0.8, n_defective),
+    np.random.normal(41.0, 4.0, n_defective),
+    np.random.normal(2.7, 0.6, n_defective),
 ])
 
 X = np.vstack([good_data, def_data])
@@ -246,47 +238,51 @@ print(f"Recall:    {recall_score(y_test, y_pred):.4f}")
 print(f"F1 Score:  {f1_score(y_test, y_pred):.4f}")
 ```
 
-## Understanding the Confusion Matrix
+On the 600 test boards, 30 of which are defective, the model catches 23 defective boards, misses 7 and raises 1 false alarm. Its **accuracy**, the share of all its answers that are right, is 98.7%. That sounds excellent. Three other measures say more:
+
+- **Recall** is the share of the defective boards that the model caught: 23/30 = 0.767. Almost one defective board in four is shipped.
+- **Precision** is the share of the flagged boards that are really defective: 23/24 = 0.958.
+- The **F1 score** combines the two in one number that is high only when both are high: 0.852.
+
+## Understanding the confusion matrix
 
 <InArticleAd />
 
+
+The four counts behind these measures are usually shown as a table called the **confusion matrix**. In its names, "positive" means the model said defective and "negative" means it said good.
 
 ```text
-  Confusion Matrix for Defect Detection
-  ──────────────────────────────────────────────
-
-                        Predicted
-                    Good        Defective
-  Actual  Good:    TN            FP
-          Defect:  FN            TP
-
-  TN (True Negative):  correctly identified as good.
-  TP (True Positive):  correctly identified as defective.
-  FP (False Positive): good board flagged as defective.
-      Cost: waste (board gets re-tested or scrapped unnecessarily).
-  FN (False Negative): defective board missed.
-      Cost: shipped defect (reaches the customer).
-
-  In most factories, FN is much more costly than FP.
-  Missing a defect costs recalls, reputation, safety.
-  A false alarm just costs a re-test.
+                      predicted
+                   good       defective
+                ┌──────────┬──────────┐
+  actual good   │  TN 569  │  FP 1    │
+                ├──────────┼──────────┤
+  actual        │  FN 7    │  TP 23   │
+  defective     └──────────┴──────────┘
 ```
 
-<Card title="Why Accuracy is Misleading" icon="warning">
-If 95% of boards are good and your model simply predicts "good" for everything, accuracy is 95%. But recall is 0%: you catch zero defectives. When classes are imbalanced, accuracy is almost useless. Look at precision, recall, and the F1 score instead.
+- **TN, true negative:** a good board passed as good.
+- **TP, true positive:** a defective board flagged as defective.
+- **FP, false positive:** a good board flagged as defective, a false alarm. The cost is a second test.
+- **FN, false negative:** a defective board passed as good. The cost is a defect that reaches the customer.
+
+In most factories a false negative costs far more than a false positive. A failing bearing passed as healthy is the same case.
+
+<Card title="Why accuracy misleads" icon="warning">
+If 95% of the boards are good and a model says "good" for every board, its accuracy is 95% and its recall is 0%: it catches no defective board. When one class is rare, accuracy tells you almost nothing. Look at precision, recall and the F1 score.
 </Card>
 
-## Step 4: The Precision-Recall Tradeoff
+## Step 4: The precision-recall tradeoff
 
 <InArticleAd />
 
 
-The logistic regression model outputs a probability. The default decision threshold is 0.5, but you can change it. Lowering the threshold means you flag more boards as defective. You catch more real defects (higher recall) but also flag more good boards (lower precision). Raising the threshold does the opposite.
+Nothing forces the threshold to be 0.5. A lower threshold flags more boards: you catch more of the defective ones (higher recall), and you also flag more good ones (lower precision). A higher threshold does the opposite.
 
-<Card title="Are These Probabilities Trustworthy?" icon="warning">
-Logistic regression tends to produce reasonably well-calibrated probabilities: if it says p = 0.7, about 70% of such predictions are actually positive. Many other models (SVMs, random forests, gradient boosting, neural networks) do not. A random forest might report 0.9 confidence when the true rate is 0.6.
+The next program tries six thresholds. It also draws the **ROC curve**: the share of defective boards caught against the share of good boards flagged, for every threshold. The area under it, the **AUC**, is 1.0 for a model that separates the two classes completely and 0.5 for one that only guesses.
 
-If your downstream decision depends on the probability itself (for example, expected-cost analysis: `cost_of_flagging * p_defect < cost_of_shipping_bad * (1 - p_defect)`), wrap the model with `sklearn.calibration.CalibratedClassifierCV` to recalibrate. If you only use the predicted class, calibration does not matter.
+<Card title="Can you trust these probabilities?" icon="warning">
+The probabilities of logistic regression are usually close to real frequencies: of the boards it gives p = 0.7, about 70% are defective. Many other kinds of model are less exact. If you calculate with the probability itself, for example to weigh costs, correct it first with `sklearn.calibration.CalibratedClassifierCV`.
 </Card>
 
 ```python
@@ -300,7 +296,7 @@ from sklearn.metrics import precision_recall_curve, roc_curve, auc, confusion_ma
 np.random.seed(42)
 
 # ── Generate and prepare dataset (same pipeline) ──
-n_samples = 500
+n_samples = 2000
 n_defective = int(n_samples * 0.05)
 n_good = n_samples - n_defective
 labels = np.array([0] * n_good + [1] * n_defective)
@@ -313,11 +309,11 @@ good_data = np.column_stack([
     np.random.normal(2.0, 0.2, n_good),
 ])
 def_data = np.column_stack([
-    np.random.normal(3.1, 0.15, n_defective),
-    np.random.normal(18.0, 3.0, n_defective),
-    np.random.normal(11.5, 1.0, n_defective),
-    np.random.normal(38.0, 5.0, n_defective),
-    np.random.normal(3.5, 0.8, n_defective),
+    np.random.normal(3.22, 0.1, n_defective),
+    np.random.normal(17.0, 2.5, n_defective),
+    np.random.normal(10.8, 0.8, n_defective),
+    np.random.normal(41.0, 4.0, n_defective),
+    np.random.normal(2.7, 0.6, n_defective),
 ])
 
 X = np.vstack([good_data, def_data])
@@ -397,12 +393,14 @@ print("AUC = 1.0 means perfect separation. AUC = 0.5 means random guessing.")
 print("\nPlot saved as classification_curves.png")
 ```
 
-## Step 5: Handling Class Imbalance
+The table shows the tradeoff. At a threshold of 0.1 the model catches 26 of the 30 defective boards (recall 0.867) and raises 8 false alarms (precision 0.765). At 0.9 it raises no false alarm (precision 1.000) and catches only 20 (recall 0.667). The ROC AUC is 0.945.
+
+## Step 5: Handling class imbalance
 
 <InArticleAd />
 
 
-When 95% of samples belong to one class, the model can get lazy. It learns that predicting "good" almost always works. Several strategies address this.
+When 95% of the samples belong to one class, the fit pays little attention to the rare class. The setting `class_weight='balanced'` corrects this: a mistake on a defective board then counts much more than a mistake on a good board.
 
 ```python
 import numpy as np
@@ -414,7 +412,7 @@ from sklearn.metrics import classification_report, recall_score, f1_score
 np.random.seed(42)
 
 # ── Generate imbalanced dataset (same as before) ──
-n_samples = 500
+n_samples = 2000
 n_defective = int(n_samples * 0.05)
 n_good = n_samples - n_defective
 labels = np.array([0] * n_good + [1] * n_defective)
@@ -427,11 +425,11 @@ good_data = np.column_stack([
     np.random.normal(2.0, 0.2, n_good),
 ])
 def_data = np.column_stack([
-    np.random.normal(3.1, 0.15, n_defective),
-    np.random.normal(18.0, 3.0, n_defective),
-    np.random.normal(11.5, 1.0, n_defective),
-    np.random.normal(38.0, 5.0, n_defective),
-    np.random.normal(3.5, 0.8, n_defective),
+    np.random.normal(3.22, 0.1, n_defective),
+    np.random.normal(17.0, 2.5, n_defective),
+    np.random.normal(10.8, 0.8, n_defective),
+    np.random.normal(41.0, 4.0, n_defective),
+    np.random.normal(2.7, 0.6, n_defective),
 ])
 
 X = np.vstack([good_data, def_data])
@@ -475,35 +473,37 @@ print("class_weight='balanced' typically improves recall at the cost of some pre
 print("For defect detection, this is usually the right tradeoff.")
 ```
 
-<Card title="Other Imbalance Strategies" icon="star">
-Beyond class weighting, you can: (1) oversample the minority class (SMOTE), (2) undersample the majority class, (3) use anomaly detection instead of classification, or (4) change the decision threshold. For small datasets, class weighting and threshold tuning are the simplest and most effective approaches.
+Here the balanced model raises the recall on defective boards from 0.767 to 0.867: it catches 26 of the 30, not 23. The false alarms rise from 1 to 23, so the precision falls from 0.958 to 0.531 and the F1 score from 0.852 to 0.658. Whether that is a good exchange depends on the cost of a missed defect against the cost of a second test.
+
+<Card title="Other ways to handle imbalance" icon="star">
+You can also add copies of the rare examples (oversampling), use fewer of the common ones (undersampling), or move the decision threshold. For small data sets, class weights and the threshold are the simplest.
 </Card>
 
-## Key Takeaways
+## Key takeaways
 
 <InArticleAd />
 
 
 <Steps>
-1. **Classification is curve fitting with a sigmoid.** Logistic regression fits a linear boundary, then passes it through a sigmoid to get probabilities. The decision threshold converts probabilities to labels.
+1. **Classification is curve fitting with a sigmoid.** A weighted sum goes through a sigmoid to give a probability, and a threshold turns it into a decision.
 
-2. **The confusion matrix is your diagnostic tool.** It tells you exactly where the model succeeds and fails. Learn to read TN, FP, FN, TP fluently.
+2. **The confusion matrix shows where the model is right and where it is wrong.** Read its four counts: TN, FP, FN and TP.
 
-3. **Precision and recall capture different costs.** Precision answers: "Of the boards I flagged, how many were actually defective?" Recall answers: "Of all defective boards, how many did I catch?"
+3. **Precision and recall measure different costs.** Precision: "Of the boards I flagged, how many were really defective?" Recall: "Of all the defective boards, how many did I catch?"
 
-4. **The threshold controls the tradeoff.** Lower the threshold to catch more defectives (higher recall) at the cost of more false alarms (lower precision). There is no free lunch.
+4. **The threshold sets the exchange between them.** A lower threshold catches more defective boards and raises more false alarms.
 
-5. **Accuracy is misleading with imbalanced classes.** Use F1, precision, recall, and AUC to evaluate classifiers on imbalanced data. A model that predicts "good" for everything has 95% accuracy and zero usefulness.
+5. **Accuracy misleads when one class is rare.** A model that says "good" for every board has 95% accuracy and catches nothing.
 
-6. **class_weight='balanced' is the simplest fix for imbalance.** It tells the model to pay more attention to rare events.
+6. **`class_weight='balanced'` is the simplest correction for imbalance.** It makes mistakes on the rare class count more.
 </Steps>
 
-## What is Next
+## What is next
 
 <InArticleAd />
 
 
-Next, in [Decision Trees and Random Forests](./decision-trees-random-forests), you will move from linear models to tree-based models. Trees can capture nonlinear decision boundaries, and random forests (ensembles of trees) are among the most reliable and interpretable models in practical ML. You will also learn to read feature importance: which measurements matter most for predicting equipment failure.
+Next, in [Decision Trees and Random Forests](/education/ml-ai-fundamentals/decision-trees-random-forests/), you leave straight-line rules for models built from yes or no questions. A tree can follow boundaries that are not straight. You also learn to read feature importance: which measurements matter most for predicting an equipment failure.
 
 <MlAiFundamentalsComments />
 
