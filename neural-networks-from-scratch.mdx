@@ -129,7 +129,7 @@ ReLU deriv:      [0. 0. 0. 1. 1.]
 **Sigmoid** presses any value into the range from 0 to 1. Use it in an output layer when you want a probability. **ReLU** (rectified linear unit) passes a positive value unchanged and turns a negative value into 0.
 
 <Card title="Why ReLU replaced sigmoid in hidden layers" icon="star">
-Look at the row of sigmoid derivatives above. The largest value is 0.25, at $z = 0$. During training, the gradient is passed back from layer to layer, and at each sigmoid layer it is multiplied by this derivative. In a network with 10 sigmoid layers, the gradient that reaches the first layer can be scaled by $(0.25)^{10}$, about one millionth. The early layers almost stop learning. This is the **vanishing gradient problem**.
+The largest sigmoid derivative in the row above is 0.25, at $z = 0$. In training, the gradient passed back from layer to layer is multiplied by this derivative at each sigmoid layer, so after 10 sigmoid layers it can be scaled by $(0.25)^{10}$, about one millionth, and the early layers almost stop learning. This is the **vanishing gradient problem**.
 
 The derivative of ReLU is 1 for any positive input and 0 otherwise, so it does not shrink the gradient on its way back. Use ReLU in hidden layers, and keep the sigmoid for an output layer that must give a probability.
 </Card>
@@ -139,7 +139,7 @@ The derivative of ReLU is 1 for any positive input and 0 otherwise, so it does n
 <InArticleAd />
 
 
-XOR ("exclusive or") is the classic test. The output is 1 when exactly one of the two inputs is 1, and 0 otherwise. It is the rule of the two level switches: alarm when they disagree. A model with a single layer cannot solve it, because the two classes are not **linearly separable**: no single straight line has the 1 answers on one side and the 0 answers on the other. A network with two layers can.
+XOR ("exclusive or") is the classic test: the output is 1 when exactly one of the two inputs is 1, and 0 otherwise, the rule of the two level switches. A single layer cannot solve it, because the two classes are not **linearly separable**: on a square with the four cases at its corners, no single straight line has the 1 answers on one side and the 0 answers on the other. A network with two layers can, with two lines.
 
 ```text
   XOR Truth Table          Why Linear Models Fail
@@ -300,7 +300,7 @@ The network has learned XOR: its four outputs are within 0.02 of the targets. A 
 <InArticleAd />
 
 
-Backpropagation answers one question for every weight: if this weight rises a little, how does the loss change? It starts from the error at the output and works backwards, layer by layer, and gives each weight its share of the error. In calculus this is the chain rule.
+Backpropagation answers one question for every weight: if this weight rises a little, how does the loss change? Starting from the error at the output, it works backwards layer by layer and gives each weight its share of the error: the chain rule of calculus.
 
 <Steps>
 

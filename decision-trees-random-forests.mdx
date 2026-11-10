@@ -39,7 +39,7 @@ No single sensor decides. A reading is dangerous when vibration and temperature 
 
 ### Training set and test set
 
-A model can score well by remembering its examples, as a student can pass by memorising last year's paper. So the readings are divided first. The model is fitted to the **training set** (420 readings here). The **test set** (180 readings) is kept away from it and used once, to see how it does on readings it has never seen. Only that score tells you what to expect tomorrow.
+A model can score well by remembering its examples, as a student can pass by memorising last year's paper. So the readings are divided first: the model is fitted to the **training set** (420 readings here), and the **test set** (180 readings) is kept away from it and used once, on readings it has never seen. Only that score tells you what to expect tomorrow.
 
 ## Step 1: Generate the Dataset
 
@@ -131,7 +131,7 @@ The top of the tree that the program finds, simplified:
 You do not choose the questions or the thresholds. The tree finds them in the data.
 
 <Card title="How the tree chooses a question" icon="star">
-The tree scores a question by **impurity**: how mixed the classes are inside a group. One class only gives 0. Half and half gives the highest value. Two measures are common:
+The tree scores a question by **impurity**: how mixed the classes are inside a group, like coloured balls in a jar. One class only gives 0; half and half gives the highest value. Two measures are common:
 
 ```text
   Gini impurity (default in sklearn):
@@ -225,7 +225,7 @@ The plotted tree also has a branch that predicts failure for cold readings with 
 <InArticleAd />
 
 
-The **depth** of a tree is the number of questions from top to bottom. A deep tree can go on asking until it is right on every training reading. But its last questions separate single readings that differ only by chance, and they are wrong for new readings. This is **overfitting**: the model remembers its examples and not the pattern.
+The **depth** of a tree is the number of questions from top to bottom. A deep tree can go on asking until it is right on every training reading, but its last questions separate single readings that differ only by chance, and they are wrong for new readings. This is **overfitting**: the model remembers its examples and not the pattern.
 
 The program grows trees of depth 1 to 20. At depth 4 the tree scores 97.6% on the training set and 93.3% on the test set. From depth 9 it scores 100% and 92.2%. At depth 1 both are 85.0%: that tree answers "normal" for everything.
 
@@ -381,7 +381,7 @@ print(f"\nDetailed Random Forest Report:")
 print(classification_report(y_test, y_pred_forest, target_names=['Normal', 'Failure']))
 ```
 
-The forest is a little more accurate than the single tree (93.9% against 93.3%). But its recall for failures is 0.59: it found 16 of the 27 and missed 11, where the tree missed 8. The model with the higher accuracy misses more failures.
+The forest is a little more accurate than the single tree (93.9% against 93.3%), but its recall for failures is 0.59: it found 16 of the 27 and missed 11, where the tree missed 8. The more accurate model misses more failures.
 
 <Card title="Out-of-bag score" icon="star">
 Each tree's random sample leaves out about one third of the training readings: its "out-of-bag" (OOB) readings. The forest tests each tree on the readings it did not see. This gives a score on unseen readings without a separate set. Here it is 0.938, close to the test accuracy of 0.939.

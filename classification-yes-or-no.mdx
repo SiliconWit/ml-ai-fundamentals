@@ -33,7 +33,7 @@ A failing bearing that is passed as healthy stops a production line. A healthy b
 
 ## The problem: defective sensor boards
 
-You run a production line that tests sensor boards. A test station records five electrical measurements for each board: output voltage, supply current, input resistance, signal-to-noise ratio, and response time. A small share of the boards is defective. You want a model that flags the defective ones from the five measurements.
+On a production line, a test station records five electrical measurements for each sensor board: output voltage, supply current, input resistance, signal-to-noise ratio, and response time. A small share of the boards is defective, and you want a model that flags them from the five measurements.
 
 ## Step 1: Generate the dataset
 
@@ -126,7 +126,7 @@ The defective boards overlap with the good boards in every measurement. No singl
 <InArticleAd />
 
 
-Linear regression gives any number as its output. For a yes or no question you want a number between 0 and 1 that you can read as a probability. **Logistic regression** makes it in two steps. First it forms the same weighted sum of the measurements as linear regression, with a weight for each measurement and an intercept. Call the sum $z$. Then it passes $z$ through the **sigmoid function**, which presses any number into the range from 0 to 1:
+For a yes or no question you want an output between 0 and 1 that you can read as a probability, not any number as linear regression gives. **Logistic regression** forms the same weighted sum of the measurements as linear regression (a weight for each measurement and an intercept), calls it $z$, and passes $z$ through the **sigmoid function**, which presses any number into the range from 0 to 1:
 
 $$
 p = \frac{1}{1 + e^{-z}}
@@ -249,7 +249,7 @@ On the 600 test boards, 30 of which are defective, the model catches 23 defectiv
 <InArticleAd />
 
 
-The four counts behind these measures are usually shown as a table called the **confusion matrix**. In its names, "positive" means the model said defective and "negative" means it said good.
+The four counts behind these measures form a table called the **confusion matrix**. In its names, "positive" means the model said defective and "negative" means it said good.
 
 ```text
                       predicted
@@ -277,7 +277,7 @@ If 95% of the boards are good and a model says "good" for every board, its accur
 <InArticleAd />
 
 
-Nothing forces the threshold to be 0.5. A lower threshold flags more boards: you catch more of the defective ones (higher recall), and you also flag more good ones (lower precision). A higher threshold does the opposite.
+The threshold need not be 0.5. A lower threshold flags more boards: more of the defective ones are caught (higher recall), and more good ones are flagged (lower precision). A higher threshold does the opposite.
 
 The next program tries six thresholds. It also draws the **ROC curve**: the share of defective boards caught against the share of good boards flagged, for every threshold. The area under it, the **AUC**, is 1.0 for a model that separates the two classes completely and 0.5 for one that only guesses.
 

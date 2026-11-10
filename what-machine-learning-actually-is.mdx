@@ -33,7 +33,7 @@ Machine learning sounds like a subject for specialists, so many technicians and 
 
 ## Curve fitting is machine learning
 
-Suppose you measure the electrical power a pump draws at several flows and plot the points. You draw a line through them, so that you can read the power at a flow you did not measure. That is curve fitting. The line is the model, and its slope and its intercept (its height where $x = 0$) are the two adjustable numbers. If you have taken the [Applied Mathematics course](/education/applied-mathematics/), you have done this already.
+Measure the power a pump draws at several flows, plot the points, and draw a line through them to read the power at a flow you did not measure. That is curve fitting. The line is the model, and its slope and its intercept (its height where $x = 0$) are the two adjustable numbers. If you have taken the [Applied Mathematics course](/education/applied-mathematics/), you have done this already.
 
 Machine learning is the same work with three additions:
 
@@ -78,14 +78,14 @@ plt.show()
 print("Plot saved as linear_fit.png")
 ```
 
-The program prints a slope of 1.796 and an intercept of 1.643. They are close to the true values (2 and 1) and not equal to them, because the noise moved the points. This is a complete machine learning model, the simplest there is: you gave the program examples, it found the two numbers, and the rule now predicts $y$ for any new $x$.
+The program prints a slope of 1.796 and an intercept of 1.643: close to the true 2 and 1, not equal, because the noise moved the points. This is the simplest complete machine learning model: from examples the program found two numbers, and the rule now predicts $y$ for any new $x$.
 
 ## When fitting goes wrong: overfitting
 
 <InArticleAd />
 
 
-What happens with a more flexible rule? A polynomial of degree 3 is a curve with 4 adjustable numbers, and one of degree 15 has 16. The more numbers, the more bends the curve can make. The next program uses a harder pattern, one wave of a sine curve with noise, and fits it three times: with degree 1 (a straight line), degree 3 and degree 15.
+A polynomial of degree 3 is a curve with 4 adjustable numbers, and one of degree 15 has 16: more numbers, more bends. The next program fits one noisy wave of a sine curve three times, with degree 1 (a straight line), degree 3 and degree 15.
 
 For each fit it prints the training error as the mean squared error (MSE): take the miss at each point, square it, and average the squares.
 
@@ -131,7 +131,7 @@ print("from the true sine than degree 3. It bends toward individual noisy")
 print("points and wiggles between them. That is overfitting.")
 ```
 
-Look at the degree 15 plot. The curve bends toward single training points, so its training error is the lowest of the three (about 0.02, against about 0.08 for degree 3 and 0.33 for the straight line). But the curve swings between the points and near the two ends, and it is further from the true sine than the degree 3 curve. For a new $x$ between the training points, its prediction would be worse than the prediction of the simpler model.
+The degree 15 curve bends toward single training points, so its training error is the lowest (about 0.02, against 0.08 for degree 3 and 0.33 for the line). But it swings between the points and near the ends, further from the true sine than the degree 3 curve, so at a new $x$ it predicts worse than the simpler model.
 
 This is **overfitting**: the model has copied the noise in the training data, and not the pattern under the noise.
 
@@ -140,7 +140,7 @@ This is **overfitting**: the model has copied the noise in the training data, an
 <InArticleAd />
 
 
-How do you detect overfitting? Keep some of the data back. The model is fitted to one part, the training set, and never sees the other part, the test set. Then you measure how well it predicts the test set.
+To detect overfitting, keep some of the data back. The model is fitted to one part, the training set, and never sees the other part, the test set, on which you then measure its predictions. The test set works like an exam with new questions: a student who learned last year's answers by heart does well on the old paper and fails the new one.
 
 ```python
 import numpy as np
@@ -287,7 +287,7 @@ A program acts and receives a reward or a penalty for each action. Over many tri
 <InArticleAd />
 
 
-This program joins the parts of the lesson. It makes a noisy sine data set, splits it into a training set and a test set, fits polynomials of rising degree, and produces a table and two plots: the fits and the error curves.
+This program joins the parts: a noisy sine data set, split into training and test sets, fitted with polynomials of rising degree, with a table and two plots (the fits and the error curves).
 
 ```python
 import numpy as np

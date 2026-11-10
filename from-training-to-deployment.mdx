@@ -227,7 +227,7 @@ A batch program is enough when answers are needed every hour or every day, as fo
 <InArticleAd />
 
 
-To answer one reading at a time, make the model a small web service. It waits for requests over HTTP, the protocol of web pages. A device sends its reading as JSON, a text format of names and values, and receives the answer in the same format. Such a service is called a REST API, and Flask is a Python library for writing one. A microcontroller with WiFi, a small computer at the machine or a web page can use it.
+To answer one reading at a time, make the model a small web service that waits for requests over HTTP, the protocol of web pages. A device sends its reading as JSON, a text format of names and values, and receives the answer in the same format. Such a service is a REST API, and Flask is a Python library for writing one. A microcontroller with WiFi, a small computer at the machine or a web page can use it.
 
 The answer travels over a network, which can be slow or down: one more reason to keep the protecting limit in the device.
 
@@ -378,7 +378,7 @@ curl -X POST http://localhost:5000/predict \
 <InArticleAd />
 
 
-A microcontroller (MCU) is the small computer on a chip inside a device. It cannot run Python. But a decision tree is only a list of comparisons, so it can be written out as C code: arrays of numbers for the scaling, and nested `if` and `else` lines for the questions. The device then answers by itself, with no network. The program trains a small tree on the same data and writes that C file.
+A microcontroller (MCU), the small computer on a chip inside a device, cannot run Python. But a decision tree is only a list of comparisons, so it can be written out as C code: arrays of numbers for the scaling, and nested `if` and `else` lines for the questions. The device then answers by itself, with no network. The program trains a small tree on the same data and writes that C file.
 
 ```python
 import numpy as np
@@ -633,7 +633,7 @@ Action: collect new labeled data and retrain the model.
 
 The mean vibration has moved by (2.803 - 2.003) / 0.500 = 1.60 standard deviations. Pressure has moved by about 0.5, below the threshold. The model was trained on lower vibration, so its answers on these readings may be wrong. Collect new labelled readings and train again.
 
-This check sees only the inputs. It cannot see concept drift. For that, compare the answers of the model with what the technicians found: every inspection report is a fresh labelled example. Each month, count the missed faults and the false alarms.
+This check sees only the inputs, not concept drift. For that, compare the answers of the model with what the technicians found: every inspection report is a fresh labelled example. Each month, count the missed faults and the false alarms.
 
 ## The Retraining Decision
 

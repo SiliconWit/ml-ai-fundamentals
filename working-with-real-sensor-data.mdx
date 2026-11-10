@@ -471,12 +471,12 @@ In row 500 the 6 hour mean (3.012 g) is above the 24 hour mean (2.649 g), and th
 <InArticleAd />
 
 
-A model is judged only on readings it has not seen. So the model is fitted to a training set, and a test set is kept back to score it.
+A model is judged only on readings it has not seen: it is fitted to a training set, and a test set is kept back to score it.
 
 <Card title="Never split a time series at random" icon="warning">
 The program takes the first 80% of the hours for training and the last 20% for testing, not rows picked at random.
 
-With a random division, the hours on each side of a test hour are in the training set. The 6 hour means at 14:00 and at 15:00 share five of their six readings, so the model has almost seen each test row. The score looks excellent and the model fails on the machine.
+With a random division, the hours on each side of a test hour are in the training set. The 6 hour means at 14:00 and at 15:00 share five of their six readings, so the model has almost seen each test row: the score looks excellent and the model fails on the machine.
 
 For cross-validation use `TimeSeriesSplit`, described in [Practical ML with Scikit-Learn](/education/ml-ai-fundamentals/practical-ml-scikit-learn/).
 </Card>
@@ -631,7 +631,7 @@ Top 10 Most Important Features:
   ...
 ```
 
-The 6 hour mean of vibration is the most important feature. This makes sense: the vibration rises before a failure, and a short mean shows that rise without the noise of single hours.
+The 6 hour mean of vibration is the most important feature, as expected: the vibration rises before a failure, and a short mean shows that rise without the noise of single hours.
 
 ## Interpreting the Results
 

@@ -33,7 +33,7 @@ A building that is cooled or heated one degree more than it needs wastes energy 
 
 ## The problem
 
-You have sensors for the outdoor temperature, the relative humidity and the time of day, and you want to predict the indoor temperature of a building. Heating and cooling control and energy management need this prediction.
+From sensors for the outdoor temperature, the relative humidity and the time of day, you want to predict the indoor temperature of a building, for heating and cooling control and energy management.
 
 The three inputs are called the **features**, and the indoor temperature is the **target**. The model is a straight-line rule:
 
@@ -50,7 +50,7 @@ The data is synthetic. The programs make it, so you know what the model should f
 <InArticleAd />
 
 
-The synthetic data has the relationships you would expect (the indoor temperature follows the outdoor temperature, and rises and falls through the day), with random noise in the place of sensor error.
+The indoor temperature follows the outdoor temperature and rises and falls through the day, with random noise in the place of sensor error.
 
 ```python
 import numpy as np
@@ -121,7 +121,7 @@ print("\nPlot saved as sensor_data_exploration.png")
 <InArticleAd />
 
 
-The features have different units and ranges. **Feature scaling** brings them to one scale: `StandardScaler` subtracts the mean of each feature and divides by its standard deviation (its typical distance from the mean). Linear regression predicts the same with or without scaling, but scaling is worth doing:
+The features have different units and ranges. **Feature scaling** brings them to one scale: `StandardScaler` subtracts the mean of each feature and divides by its standard deviation (its typical distance from the mean). Linear regression predicts the same either way, but scaling is worth doing:
 
 1. **The weights can be compared.** Each weight then says how much the prediction changes when its feature moves by one standard deviation.
 2. **Other methods need it.** Gradient descent, covered later, works badly on features with very different scales.
@@ -324,7 +324,7 @@ On the 60 test samples the RMSE is 1.96 °C, the MAE is 1.59 °C and $R^2$ is 0.
 <InArticleAd />
 
 
-The measures say how large the errors are. Residual analysis says _why_. Plot the residuals against the predicted value and against each feature. A shapeless cloud around zero means the model has found what there is to find. A pattern means it is missing something:
+The measures say how large the errors are; residual analysis says _why_. Plot the residuals against the predicted value and against each feature. A shapeless cloud around zero means the model has found what there is to find. A pattern means it is missing something:
 
 - **A curve.** The real relationship is not a straight line.
 - **A cycle or a step** against one feature. The model needs that feature in another form.
@@ -421,7 +421,7 @@ Here the plot against hour shows a wave. In blocks of three hours, the model is 
 <InArticleAd />
 
 
-A straight-line rule cannot follow a wave: the building is warmest near midday, and hour 23 is next to hour 0. So give the model the hour in a form it can use. Replace `hour` with two features, `sin(2*pi*hour/24)` and `cos(2*pi*hour/24)`. A weighted sum of the two makes a daily wave with its peak at any hour. Making better inputs from the raw ones is called **feature engineering**.
+A straight-line rule cannot follow a wave: the building is warmest near midday, and hour 23 is next to hour 0, as on a clock. So replace `hour` with two features, `sin(2*pi*hour/24)` and `cos(2*pi*hour/24)`, the two coordinates of the hour on a 24 hour clock. A weighted sum of the two makes a daily wave with its peak at any hour. Making better inputs from the raw ones is called **feature engineering**.
 
 ```python
 import numpy as np
