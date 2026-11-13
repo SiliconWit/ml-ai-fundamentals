@@ -489,7 +489,7 @@ Top 5 parameter combinations:
                        200                      3                       0.05         0.804042        0.020875
 ```
 
-Tuning raised the cross-validated R2 from 0.785 (depth 5, set by hand) to 0.815, and the best five combinations all use the shallowest trees (depth 3). The data contain noise with a standard deviation of 10 kWh, so no model can reach an R2 much above 0.88 on this data.
+Tuning raised the cross-validated R2 from 0.768 (depth 5, set by hand, scored on the same 800 training rows) to 0.815, and the best five combinations all use the shallowest trees (depth 3). The data contain noise with a standard deviation of 10 kWh, so no model can reach an R2 much above 0.88 on this data.
 
 Now the test set is used, once: 0.820, close to the cross-validation score of 0.815. A test score far below it would mean that something leaked.
 
