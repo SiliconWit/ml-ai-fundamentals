@@ -657,7 +657,7 @@ This check sees only the inputs, not concept drift. For that, compare the answer
 A practical file name is `equipment_health_v1.0_2025-09-15.joblib`.
 
 :::tip[Instrument it]
-In training, the model saw readings from a file. In use it sees a live sensor. The firmware on the [MCU that reads the sensor](/education/sensor-actuator-interfacing-stm32/) must sample at the same rate and apply the same scaling as the training data. Then the device can run the model itself and [report only the events that matter](/education/iot-systems/), which [siliconwit.io](https://siliconwit.io) can turn into an alert for a person.
+In training, the model saw readings from a file. In use it sees a live sensor. The firmware on the [MCU that reads the sensor](/education/sensor-actuator-interfacing-stm32/) must sample at the same rate and apply the same scaling as the training data. Then the device can run the model itself and [report only the events that matter](/education/iot-systems/) over MQTT to a broker you run, or to [siliconwit.io](https://siliconwit.io), our monitoring service, which turns them into an alert for a person; it works with any MQTT client.
 :::
 
 ## Deployment Summary
